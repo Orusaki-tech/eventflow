@@ -1,0 +1,31 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.8
+pydantic-settings>=2.0
+python-multipart>=0.0.9
+sqlalchemy>=2.0
+alembic>=1.13
+redis>=5.0
+PyJWT>=2.8
+cryptography>=42.0
+jwcrypto>=1.5
+google-genai>=1.0
+psycopg[binary]>=3.2
+google-auth-oauthlib>=1.3
+google-api-python-client>=2.0
+google-auth-httplib2>=0.2
+icalendar>=5.0
+apscheduler>=3.10
+tzlocal>=5
+python-dateutil>=2.9
+
+# media extraction
+yt-dlp>=2025.1.0
+
+# dev/test
+pytest>=8.2
+httpx>=0.27
+
+# image fingerprinting (poster dedupe)
+Pillow>=10.0
+

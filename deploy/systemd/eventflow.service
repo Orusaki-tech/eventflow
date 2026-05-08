@@ -1,0 +1,26 @@
+[Unit]
+Description=EventFlow (docker compose)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/eventflow
+
+# Load environment overrides (optional)
+EnvironmentFile=-/opt/eventflow/.env
+
+# Bring the stack up/down
+ExecStart=/usr/bin/docker compose up -d --remove-orphans
+ExecStop=/usr/bin/docker compose down
+
+# If compose up fails, systemd will retry when enabled with Restart=on-failure,
+# but oneshot services don't restart by default. We rely on docker restart policies
+# (unless-stopped) to keep containers up after boot.
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
+

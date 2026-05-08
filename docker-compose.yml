@@ -1,0 +1,144 @@
+services:
+  api:
+    build: .
+    command: uvicorn eventflow.entrypoints.fastapi_app:app --host 0.0.0.0 --port 8000
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    environment:
+      # DB: prefer DB_URL (Supabase / Cloud SQL / etc). Fall back to DB_*
+      # parts only if DB_URL is unset — handy if you ever bring back a local
+      # postgres service for offline dev. The `:-` form keeps compose quiet
+      # when these aren't defined in the env file (the common prod case where
+      # only DB_URL is set).
+      - DB_URL=${DB_URL:-}
+      - DB_HOST=${DB_HOST:-}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-}
+      - DB_USER=${DB_USER:-}
+      - DB_PASSWORD=${DB_PASSWORD:-}
+      - DB_QUERY=${DB_QUERY:-}
+      - REDIS_URL=redis://redis:6379/0
+      - ENV=${ENV:-local}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ALLOW_UNAUTHENTICATED_LOCAL=${ALLOW_UNAUTHENTICATED_LOCAL:-true}
+      - CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS}
+      - TRUSTED_HOSTS=${TRUSTED_HOSTS}
+      - YTDLP_COOKIE_FILE=${YTDLP_COOKIE_FILE}
+      - SUPABASE_JWKS_URL=${SUPABASE_JWKS_URL}
+      - SUPABASE_JWT_AUDIENCE=${SUPABASE_JWT_AUDIENCE:-authenticated}
+      - SUPABASE_JWT_ISSUER=${SUPABASE_JWT_ISSUER}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+      - GOOGLE_CALENDAR_CREDENTIALS_JSON=${GOOGLE_CALENDAR_CREDENTIALS_JSON}
+      - CALENDAR_TOKEN_KEY=${CALENDAR_TOKEN_KEY}
+      - GOOGLE_OAUTH_REDIRECT_URI=${GOOGLE_OAUTH_REDIRECT_URI}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/healthz', timeout=2).read()",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Loopback-only host binding — never publicly reachable on the VM's external NIC.
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  # ---------- Workers ----------
+  # All workers share the same DB / Redis env shape. Anchored here to keep the
+  # service blocks tiny.
+  traffic_worker:
+    build: .
+    command: python -m eventflow.workers.traffic_monitor
+    restart: unless-stopped
+    depends_on:
+      - redis
+    environment: &worker_env
+      - DB_URL=${DB_URL:-}
+      - DB_HOST=${DB_HOST:-}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-}
+      - DB_USER=${DB_USER:-}
+      - DB_PASSWORD=${DB_PASSWORD:-}
+      - DB_QUERY=${DB_QUERY:-}
+      - REDIS_URL=redis://redis:6379/0
+      - ENV=${ENV:-local}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY:-}
+
+  scheduler:
+    build: .
+    command: python -m eventflow.workers.scheduler
+    restart: unless-stopped
+    depends_on:
+      - redis
+    environment: *worker_env
+
+  outbox_publisher:
+    build: .
+    command: python -m eventflow.workers.outbox_publisher
+    restart: unless-stopped
+    depends_on:
+      - redis
+    environment: *worker_env
+
+  scheduler_sideeffects:
+    build: .
+    command: python -m eventflow.workers.scheduler_sideeffects
+    restart: unless-stopped
+    depends_on:
+      - redis
+    environment: *worker_env
+
+  push_sideeffects:
+    build: .
+    command: python -m eventflow.workers.push_sideeffects
+    restart: unless-stopped
+    depends_on:
+      - redis
+    environment: *worker_env
+
+  push_sender:
+    build: .
+    command: python -m eventflow.workers.push_sender
+    restart: unless-stopped
+    depends_on:
+      - redis
+    environment:
+      - DB_URL=${DB_URL:-}
+      - DB_HOST=${DB_HOST:-}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-}
+      - DB_USER=${DB_USER:-}
+      - DB_PASSWORD=${DB_PASSWORD:-}
+      - DB_QUERY=${DB_QUERY:-}
+      - REDIS_URL=redis://redis:6379/0
+      - ENV=${ENV:-local}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - EXPO_ACCESS_TOKEN=${EXPO_ACCESS_TOKEN:-}
+
+  community_embeddings_worker:
+    build: .
+    command: python -m eventflow.workers.community_embeddings_worker
+    restart: unless-stopped
+    depends_on:
+      - redis
+    environment: *worker_env

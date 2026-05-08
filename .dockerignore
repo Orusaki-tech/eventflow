@@ -1,0 +1,44 @@
+# VCS / editor
+.git
+.gitignore
+.idea
+.vscode
+*.swp
+
+# Local secrets — must be mounted/passed at runtime, never baked in
+.env
+.env.*
+!.env.example
+
+# Python build / cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+
+# Virtualenvs (these are huge and never belong in an image)
+venv/
+venv.*/
+.venv/
+
+# Local data the API writes at runtime — gets baked as state otherwise
+data/
+*.sqlite
+*.sqlite3
+*.db
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend / mobile workspace (not part of the API image)
+apps/
+deploy/
+
+# Docs / misc
+README.md
+*.md
