@@ -6,18 +6,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from eventflow.adapters.repository import Venue
-from eventflow.config import get_settings
 from eventflow.entrypoints.api.schemas import VenueCreateRequest, VenueResponse, VenueUpdateRequest
-from eventflow.entrypoints.dependencies import get_current_user_id, get_uow
+from eventflow.entrypoints.dependencies import get_current_user_id, get_uow, is_admin_user
 
 
 router = APIRouter(tags=["Venues"])
-
-
-def _is_admin(user_id: UUID) -> bool:
-    csv = get_settings().admin_user_ids_csv or ""
-    allow = {s.strip() for s in csv.split(",") if s.strip()}
-    return str(user_id) in allow
 
 
 @router.get("/venues/search", response_model=list[VenueResponse], status_code=status.HTTP_200_OK)
@@ -66,7 +59,7 @@ async def update_venue(
     user_id=Depends(get_current_user_id),
     uow=Depends(get_uow),
 ):
-    if not _is_admin(user_id):
+    if not is_admin_user(user_id):
         raise HTTPException(status_code=403, detail="Admins only")
 
     with uow:

@@ -422,3 +422,77 @@ class GroupRsvpRequest(BaseModel):
 class GroupPinRequest(BaseModel):
     event_id: UUID | None = None
 
+
+# --- Admin console (JWT + ADMIN_USER_IDS) ---
+
+
+class AdminConsoleMeResponse(BaseModel):
+    ok: bool = True
+    user_id: UUID
+
+
+class AdminConsoleSummaryResponse(BaseModel):
+    businesses: int
+    community_events: int
+    poster_assets: int
+    event_drafts: int
+    distinct_active_user_ids: int = Field(
+        ...,
+        description=(
+            "Count of distinct user ids seen across community_events, event_drafts, and business owners — "
+            "not a full user directory."
+        ),
+    )
+
+
+class AdminConsoleBusinessRow(BaseModel):
+    business_id: UUID
+    name: str
+    whatsapp_e164: str | None
+    owner_user_id: UUID
+    verified: bool
+    created_at: datetime
+
+
+class AdminConsoleBusinessListResponse(BaseModel):
+    items: list[AdminConsoleBusinessRow]
+    total: int
+    limit: int
+    offset: int
+
+
+class AdminConsoleCommunityEventRow(BaseModel):
+    community_event_id: UUID
+    user_id: UUID
+    title: str
+    start_time: datetime
+    venue: str
+    source: str
+    poster_image_uri: str | None = None
+    attached_business_id: UUID | None = None
+
+
+class AdminConsoleCommunityEventListResponse(BaseModel):
+    items: list[AdminConsoleCommunityEventRow]
+    total: int
+    limit: int
+    offset: int
+
+
+class AdminConsolePosterAssetRow(BaseModel):
+    poster_asset_id: UUID
+    content_sha256: str | None = None
+    dhash64: str
+    created_at: datetime
+    content_type: str
+    event_source_links: int = Field(..., description="Rows in event_sources referencing this poster_asset_id.")
+    draft_links: int = Field(..., description="event_sources rows with non-null draft_id.")
+    scheduled_event_links: int = Field(..., description="event_sources rows with non-null event_id.")
+
+
+class AdminConsolePosterAssetListResponse(BaseModel):
+    items: list[AdminConsolePosterAssetRow]
+    total: int
+    limit: int
+    offset: int
+

@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "build": "cd apps/web-business && npm ci && npm run build",
+    "build:admin": "cd apps/web-admin && npm ci && npm run build",
     "lint": "cd apps/web-business && npm run lint"
   },
   "dependencies": {

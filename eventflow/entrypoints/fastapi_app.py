@@ -13,6 +13,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from eventflow.api.errors import domain_error_handler
 from eventflow.domain.exceptions import DomainError
 from eventflow.entrypoints.api.routes import (
+    admin_console,
     alerts,
     calendar_oauth,
     capture,
@@ -150,6 +151,7 @@ def create_app() -> FastAPI:
     app.include_router(places.router, prefix="/api/v1")
     app.include_router(groups.router, prefix="/api/v1")
     app.include_router(product_gap.router, prefix="/api/v1")
+    app.include_router(admin_console.router, prefix="/api/v1")
     app.include_router(calendar_oauth.router, prefix="/api/v1")
     app.include_router(health.router, prefix="/api/v1")
 

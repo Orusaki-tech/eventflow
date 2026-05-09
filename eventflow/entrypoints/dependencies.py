@@ -106,6 +106,23 @@ def get_current_user_id(
         )
 
 
+def _parse_admin_user_ids_csv() -> set[str]:
+    csv = get_settings().admin_user_ids_csv or ""
+    return {s.strip() for s in csv.split(",") if s.strip()}
+
+
+def is_admin_user(user_id: UUID) -> bool:
+    """True when ``user_id`` is listed in ``ADMIN_USER_IDS`` (comma-separated Supabase auth UUIDs)."""
+    return str(user_id) in _parse_admin_user_ids_csv()
+
+
+def require_admin_user(user_id: UUID = Depends(get_current_user_id)) -> UUID:
+    """JWT route dependency: same bearer verification as ``get_current_user_id``, plus membership in ``ADMIN_USER_IDS``."""
+    if not is_admin_user(user_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    return user_id
+
+
 def require_admin_api_token(x_admin_token: str | None = Header(None, alias="X-Admin-Token")) -> None:
     settings = get_settings()
     expected = (settings.admin_api_token or "").strip()
