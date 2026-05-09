@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 
@@ -7,6 +9,8 @@ from eventflow.adapters.embeddings_client import DeterministicEmbeddingsClient
 from eventflow.adapters.share_parse_cache import normalize_shared_url
 from eventflow.domain import commands
 from eventflow.entrypoints.api.schemas import (
+    CommunityEventMineDetailResponse,
+    CommunityEventMineListRowResponse,
     CommunityEventResponse,
     CommunityEventUpsertRequest,
     SharedLinkListingStatusResponse,
@@ -60,6 +64,42 @@ async def discovery_search(
     embedder = DeterministicEmbeddingsClient(dim=64)
     qvec = _vector_literal(embedder.embed_text(text=q))
     return views.search_community_events(session=session, query_vector=qvec, limit=limit)
+
+
+@router.get(
+    "/discovery/community-events/mine",
+    status_code=status.HTTP_200_OK,
+    response_model=list[CommunityEventMineListRowResponse],
+)
+async def discovery_my_community_events(
+    limit: int = Query(default=50, ge=1, le=200),
+    user_id=Depends(get_current_user_id),
+    session=Depends(get_session),
+):
+    if session is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    rows = views.list_my_community_events(session=session, user_id=user_id, limit=limit)
+    return [CommunityEventMineListRowResponse.model_validate(r) for r in rows]
+
+
+@router.get(
+    "/discovery/community-events/{community_event_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=CommunityEventMineDetailResponse,
+)
+async def discovery_my_community_event_detail(
+    community_event_id: UUID,
+    user_id=Depends(get_current_user_id),
+    session=Depends(get_session),
+):
+    if session is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    row = views.get_my_community_event_detail(
+        session=session, user_id=user_id, community_event_id=community_event_id
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Listing not found")
+    return CommunityEventMineDetailResponse.model_validate(row)
 
 
 @router.post("/discovery/community-events", status_code=status.HTTP_201_CREATED, response_model=CommunityEventResponse)

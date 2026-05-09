@@ -34,7 +34,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="card">
+    <div className="marketing-wrap">
+      <div className="card">
       <h1 style={{ marginTop: 0 }}>Sign in</h1>
       <p style={{ color: "var(--muted)" }}>Use the same Supabase user as EventFlow mobile.</p>
       {!supabaseEnvReady ? (
@@ -70,6 +71,7 @@ export default function LoginPage() {
           </Link>
         </div>
       </form>
+      </div>
     </div>
   );
 }

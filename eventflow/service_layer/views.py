@@ -274,6 +274,87 @@ def list_community_events(*, session: Any, limit: int = 50) -> List[dict]:
     return [dict(r._mapping) for r in results]
 
 
+def list_my_community_events(*, session: Any, user_id: UUID, limit: int = 50) -> List[dict]:
+    results = session.execute(
+        text(
+            """
+            SELECT e.id as community_event_id,
+                   e.source,
+                   e.title,
+                   e.start_time,
+                   e.venue,
+                   e.description,
+                   e.poster_image_uri,
+                   bl.business_id,
+                   b.whatsapp_e164,
+                   v.hero_video_uri
+            FROM community_events e
+            LEFT JOIN business_listing_attachments bl ON bl.community_event_id = e.id
+            LEFT JOIN businesses b ON b.id = bl.business_id
+            LEFT JOIN LATERAL (
+              SELECT ev.storage_uri AS hero_video_uri
+              FROM event_videos ev
+              WHERE ev.community_event_id = e.id AND ev.moderation_status = 'approved'
+              ORDER BY ev.created_at ASC
+              LIMIT 1
+            ) v ON TRUE
+            WHERE e.user_id = :uid
+            ORDER BY e.start_time DESC
+            LIMIT :limit
+            """
+        ),
+        {"uid": str(user_id), "limit": int(limit)},
+    )
+    return [dict(r._mapping) for r in results]
+
+
+def get_my_community_event_detail(*, session: Any, user_id: UUID, community_event_id: UUID) -> dict | None:
+    row = session.execute(
+        text(
+            """
+            SELECT e.id as community_event_id,
+                   e.source,
+                   e.title,
+                   e.start_time,
+                   e.venue,
+                   e.description,
+                   e.poster_image_uri,
+                   bl.business_id,
+                   b.whatsapp_e164,
+                   v.hero_video_uri
+            FROM community_events e
+            LEFT JOIN business_listing_attachments bl ON bl.community_event_id = e.id
+            LEFT JOIN businesses b ON b.id = bl.business_id
+            LEFT JOIN LATERAL (
+              SELECT ev.storage_uri AS hero_video_uri
+              FROM event_videos ev
+              WHERE ev.community_event_id = e.id AND ev.moderation_status = 'approved'
+              ORDER BY ev.created_at ASC
+              LIMIT 1
+            ) v ON TRUE
+            WHERE e.id = :id AND e.user_id = :uid
+            LIMIT 1
+            """
+        ),
+        {"id": str(community_event_id), "uid": str(user_id)},
+    ).first()
+    if row is None:
+        return None
+    out = dict(row._mapping)
+    alias_rows = session.execute(
+        text(
+            """
+            SELECT normalized_url FROM community_event_share_aliases
+            WHERE community_event_id = :ce
+            ORDER BY created_at ASC
+            """
+        ),
+        {"ce": str(community_event_id)},
+    ).fetchall()
+    out["normalized_share_aliases"] = [str(ar[0]) for ar in alias_rows]
+    return out
+
+
 def search_community_events(*, session: Any, query_vector: str, limit: int = 20) -> List[dict]:
     results = session.execute(
         text(

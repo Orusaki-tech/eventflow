@@ -207,6 +207,25 @@ class CommunityEventResponse(BaseModel):
     poster_image_uri: str | None = None
 
 
+class CommunityEventMineListRowResponse(BaseModel):
+    """Owned community listing row (portal / mobile discovery-compatible shape)."""
+
+    community_event_id: UUID
+    source: str
+    title: str
+    start_time: datetime
+    venue: str
+    description: str | None = None
+    poster_image_uri: str | None = None
+    business_id: UUID | None = None
+    whatsapp_e164: str | None = None
+    hero_video_uri: str | None = None
+
+
+class CommunityEventMineDetailResponse(CommunityEventMineListRowResponse):
+    normalized_share_aliases: list[str] = Field(default_factory=list)
+
+
 class VenueResponse(BaseModel):
     id: UUID
     name: str

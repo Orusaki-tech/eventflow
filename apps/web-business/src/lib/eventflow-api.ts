@@ -52,6 +52,34 @@ export async function patchBusiness(
   });
 }
 
+export type CommunityMineRow = {
+  community_event_id: string;
+  source: string;
+  title: string;
+  start_time: string;
+  venue: string;
+  description?: string | null;
+  poster_image_uri?: string | null;
+  business_id?: string | null;
+  whatsapp_e164?: string | null;
+  hero_video_uri?: string | null;
+};
+
+export type CommunityMineDetail = CommunityMineRow & {
+  normalized_share_aliases: string[];
+};
+
+export async function listMineCommunityEvents(token: string, limit = 50): Promise<CommunityMineRow[]> {
+  const q = new URLSearchParams({ limit: String(limit) });
+  return efFetch(`/api/v1/discovery/community-events/mine?${q}`, token, { method: "GET" });
+}
+
+export async function getMyCommunityEvent(token: string, communityEventId: string): Promise<CommunityMineDetail> {
+  return efFetch(`/api/v1/discovery/community-events/${encodeURIComponent(communityEventId)}`, token, {
+    method: "GET",
+  });
+}
+
 export async function upsertCommunityListing(
   token: string,
   body: {
