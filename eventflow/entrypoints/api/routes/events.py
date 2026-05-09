@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -20,7 +20,9 @@ from eventflow.entrypoints.api.schemas import (
     EventPriceUpdateRequest,
     EventVisibilityUpdateRequest,
     EventConfirmedResponse,
+    DeviceCalendarPutRequest,
     ReminderAlertRequest,
+    SnoozeAlertRequest,
     ResolveVenueRequest,
     ResolveVenueResponse,
     VenueCreateRequest,
@@ -32,6 +34,7 @@ from eventflow.entrypoints.dependencies import (
     get_event_publisher,
     get_session,
     get_uow,
+    get_write_scheduler_client,
 )
 from eventflow.config import get_settings
 from eventflow.adapters.repository import Venue
@@ -460,4 +463,124 @@ async def schedule_reminder_alert(
         raise HTTPException(status_code=409, detail=str(e))
     except InvariantViolation as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/events/{event_id}/alerts/snooze", status_code=status.HTTP_202_ACCEPTED)
+async def snooze_leave_alert(
+    event_id: UUID,
+    body: SnoozeAlertRequest,
+    user_id=Depends(get_current_user_id),
+    uow=Depends(get_uow),
+    scheduler=Depends(get_write_scheduler_client),
+):
+    """Schedule a one-off reminder push (replaces prior snooze job for this event)."""
+    with uow:
+        evt = uow.events.get(event_id)
+        if evt is None:
+            raise HTTPException(status_code=404, detail="Event not found")
+        if evt.user_id != user_id:
+            raise HTTPException(status_code=403, detail="Not your event")
+        if evt.cancelled_at is not None:
+            raise HTTPException(status_code=409, detail="Event is cancelled")
+        now = datetime.now(timezone.utc)
+        if evt.start_time <= now:
+            raise HTTPException(status_code=409, detail="Event already started or ended")
+        run_at = now + timedelta(minutes=int(body.minutes))
+        scheduler.schedule_push_due(
+            job_key=f"user_snooze:{event_id}",
+            user_id=str(evt.user_id),
+            run_at=run_at,
+            title="EventFlow",
+            body=f"Reminder: {evt.title}",
+            event_id=str(event_id),
+            action="snooze",
+        )
+        uow.commit()
+    return {"status": "scheduled", "fire_at": run_at.isoformat()}
+
+
+@router.get("/events/{event_id}/device-calendar", status_code=status.HTTP_200_OK)
+async def get_device_calendar_link(
+    event_id: UUID,
+    user_id=Depends(get_current_user_id),
+    session=Depends(get_session),
+):
+    if session is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    row = session.execute(
+        text(
+            """
+            SELECT external_event_id, calendar_id
+            FROM device_calendar_links
+            WHERE user_id = :uid AND event_id = :eid
+            LIMIT 1
+            """
+        ),
+        {"uid": str(user_id), "eid": str(event_id)},
+    ).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="No device calendar mapping")
+    return {"external_event_id": row[0], "calendar_id": row[1]}
+
+
+@router.put("/events/{event_id}/device-calendar", status_code=status.HTTP_200_OK)
+async def put_device_calendar_link(
+    event_id: UUID,
+    body: DeviceCalendarPutRequest,
+    user_id=Depends(get_current_user_id),
+    session=Depends(get_session),
+    uow=Depends(get_uow),
+):
+    if session is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    with uow:
+        evt = uow.events.get(event_id)
+        if evt is None:
+            raise HTTPException(status_code=404, detail="Event not found")
+        if evt.user_id != user_id:
+            raise HTTPException(status_code=403, detail="Not your event")
+        uow.commit()
+    now = datetime.now(timezone.utc)
+    session.execute(
+        text(
+            """
+            INSERT INTO device_calendar_links (user_id, event_id, external_event_id, calendar_id, updated_at)
+            VALUES (:uid, :eid, :ext, :cal, :now)
+            ON CONFLICT (user_id, event_id) DO UPDATE SET
+              external_event_id = EXCLUDED.external_event_id,
+              calendar_id = EXCLUDED.calendar_id,
+              updated_at = EXCLUDED.updated_at
+            """
+        ),
+        {
+            "uid": str(user_id),
+            "eid": str(event_id),
+            "ext": body.external_event_id.strip(),
+            "cal": body.calendar_id.strip() if body.calendar_id else None,
+            "now": now,
+        },
+    )
+    session.commit()
+    return {"ok": True}
+
+
+@router.delete("/events/{event_id}/device-calendar", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_device_calendar_link(
+    event_id: UUID,
+    user_id=Depends(get_current_user_id),
+    session=Depends(get_session),
+):
+    if session is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    session.execute(
+        text(
+            """
+            DELETE FROM device_calendar_links
+            WHERE user_id = :uid AND event_id = :eid
+            """
+        ),
+        {"uid": str(user_id), "eid": str(event_id)},
+    )
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 

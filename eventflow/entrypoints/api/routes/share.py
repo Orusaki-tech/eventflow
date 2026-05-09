@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -37,6 +38,7 @@ from eventflow.entrypoints.dependencies import (
     get_gemini_client,
     get_image_token_store,
     get_poster_store,
+    get_session,
     get_share_parse_cache,
     get_uow,
 )
@@ -100,6 +102,32 @@ def _gemini_model_label() -> str:
     return getattr(get_settings(), "gemini_model", "unknown")
 
 
+def upsert_shared_link_listing_approved(session, url: str, draft_out: dict) -> None:
+    """Persist moderation-friendly listing metadata for URL ingestions (approved path)."""
+    norm = normalize_shared_url(url)
+    st = draft_out.get("start_time")
+    payload = {
+        "title": draft_out.get("title"),
+        "venue": draft_out.get("venue"),
+        "confidence_score": draft_out.get("confidence_score"),
+        "start_time": st.isoformat() if st is not None and hasattr(st, "isoformat") else None,
+        "price": draft_out.get("price"),
+    }
+    session.execute(
+        text(
+            """
+            INSERT INTO shared_link_listings (normalized_url, status, cached_payload, created_at, updated_at)
+            VALUES (:u, 'approved', CAST(:p AS jsonb), NOW(), NOW())
+            ON CONFLICT (normalized_url) DO UPDATE SET
+              cached_payload = CASE WHEN shared_link_listings.status = 'rejected' THEN shared_link_listings.cached_payload ELSE CAST(:p AS jsonb) END,
+              status = CASE WHEN shared_link_listings.status = 'rejected' THEN shared_link_listings.status ELSE 'approved' END,
+              updated_at = NOW()
+            """
+        ),
+        {"u": norm, "p": json.dumps(payload)},
+    )
+
+
 def _share_url_with_instagram_img_index(url: str, img_index: int) -> str:
     """Attach img_index to Instagram /p/ share URLs so poster provenance matches each carousel slide."""
     try:
@@ -118,6 +146,7 @@ def _attach_share_url_preview_poster(
     user_id: UUID,
     source_url: str,
     draft_out: dict,
+    session=None,
 ) -> dict:
     """
     Persist extracted preview bytes as poster_assets and drop transient handler keys
@@ -158,7 +187,78 @@ def _attach_share_url_preview_poster(
     finally:
         draft_out.pop("_share_preview_image_bytes", None)
         draft_out.pop("_share_preview_content_type", None)
+    if session is not None:
+        try:
+            upsert_shared_link_listing_approved(session, source_url, draft_out)
+            session.commit()
+        except Exception as exc:
+            _log.warning("shared_link_listings upsert failed: %s", exc)
     return draft_out
+
+
+def try_share_url_from_community_listing_alias(
+    *,
+    session,
+    normalized_url: str,
+    user_id: UUID,
+    uow,
+    poster_store: PosterStore,
+    source_url: str,
+) -> dict | None:
+    """Registered listing alias: hydrate draft from ``community_events`` (skip Gemini)."""
+    row = session.execute(
+        text(
+            """
+            SELECT e.title, e.start_time, e.venue, e.poster_image_uri
+            FROM community_event_share_aliases a
+            INNER JOIN community_events e ON e.id = a.community_event_id
+            WHERE a.normalized_url = :u
+            LIMIT 1
+            """
+        ),
+        {"u": normalized_url},
+    ).first()
+    if row is None:
+        return None
+    title, start_time, venue, poster_uri = row[0], row[1], row[2], row[3]
+    if start_time is None:
+        return None
+    parsed = ParsedEventDraft(
+        title=str(title or "Event"),
+        start_time=start_time,
+        venue=str(venue or ""),
+        confidence_score=1.0,
+        price=None,
+    )
+    out = handlers.persist_draft_from_parsed(user_id=user_id, parsed=parsed, uow=uow)
+    uri_str = str(poster_uri).strip() if poster_uri else ""
+    if uri_str.lower().startswith(("http://", "https://")):
+        try:
+            with httpx.Client(timeout=15.0, follow_redirects=True) as client:
+                r = client.get(uri_str)
+                if r.status_code == 200 and r.content:
+                    ct = (r.headers.get("content-type") or "image/jpeg").split(";")[0].strip()
+                    if ct.startswith("image/"):
+                        out["_share_preview_image_bytes"] = r.content
+                        out["_share_preview_content_type"] = ct
+        except Exception as exc:
+            _log.warning(
+                "community_listing_alias poster fetch failed url_key=%s err=%s",
+                _url_parse_log_key(source_url),
+                exc,
+            )
+    _log.info(
+        "share_url_parse listing_alias_hit url_key=%s",
+        _url_parse_log_key(source_url),
+    )
+    return _attach_share_url_preview_poster(
+        uow=uow,
+        poster_store=poster_store,
+        user_id=user_id,
+        source_url=source_url,
+        draft_out=out,
+        session=session,
+    )
 
 
 @router.post("/share/url", status_code=status.HTTP_201_CREATED, response_model=EventDraftResponse)
@@ -169,7 +269,31 @@ async def share_url(
     gemini=Depends(get_gemini_client),
     poster_store: PosterStore = Depends(get_poster_store),
     cache: ShareParseCache | NoOpShareParseCache = Depends(get_share_parse_cache),
+    session=Depends(get_session),
 ):
+    norm = normalize_shared_url(body.url)
+    if session is not None:
+        row = session.execute(
+            text("SELECT status FROM shared_link_listings WHERE normalized_url = :u LIMIT 1"),
+            {"u": norm},
+        ).first()
+        if row is not None and row[0] == "rejected":
+            raise HTTPException(
+                status_code=409,
+                detail="This shared link was rejected. Enter event details manually.",
+            )
+
+        alias_out = try_share_url_from_community_listing_alias(
+            session=session,
+            normalized_url=norm,
+            user_id=user_id,
+            uow=uow,
+            poster_store=poster_store,
+            source_url=body.url,
+        )
+        if alias_out is not None:
+            return alias_out
+
     cached = cache.get(url=body.url)
     cached_start = _safe_fromisoformat(getattr(cached, "start_time_iso", None)) if cached is not None else None
     if cached is not None and cached_start is not None:
@@ -195,6 +319,7 @@ async def share_url(
             user_id=user_id,
             source_url=body.url,
             draft_out=out,
+            session=session,
         )
 
     _log.info(
@@ -235,6 +360,7 @@ async def share_url(
                 user_id=user_id,
                 source_url=body.url,
                 draft_out=out2,
+                session=session,
             )
         _log.info(
             "share_url_parse lock_contended_no_cache_yet url_key=%s",
@@ -253,6 +379,7 @@ async def share_url(
             user_id=user_id,
             source_url=body.url,
             draft_out=out,
+            session=session,
         )
         # Store parsed fields for reuse; we cache the final structured values (not draft_id).
         cache.put(

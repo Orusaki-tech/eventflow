@@ -1,6 +1,4 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ExtensionStorage } from "@bacons/apple-targets";
-import Constants from "expo-constants";
 import * as Linking from "expo-linking";
 import * as FileSystem from "expo-file-system/legacy";
 import { useCallback, useEffect } from "react";
@@ -8,9 +6,9 @@ import { AppState, Platform } from "react-native";
 import { useAuth } from "../auth/AuthContext";
 import {
   ANDROID_HANDOFF_FILENAME,
-  IOS_EXTENSION_HANDOFF_KEY,
   STORAGE_PENDING_SHARE,
 } from "../lib/constants";
+import { readIosExtensionHandoff } from "../lib/readIosExtensionHandoff";
 import { shouldPickInstagramCarouselSlides } from "../lib/captureRouting";
 import { navigationRef } from "../navigation/navigationRef";
 
@@ -90,23 +88,6 @@ async function readAndroidHandoffFile(): Promise<string | null> {
   const raw = await FileSystem.readAsStringAsync(path);
   await FileSystem.deleteAsync(path, { idempotent: true });
   return raw;
-}
-
-function readIosExtensionHandoff(): string | null {
-  if (Platform.OS !== "ios") return null;
-  const group = (Constants.expoConfig?.extra as { appGroup?: string } | undefined)?.appGroup;
-  if (!group) return null;
-  try {
-    const store = new ExtensionStorage(group);
-    const text = store.get(IOS_EXTENSION_HANDOFF_KEY);
-    if (text) {
-      store.remove(IOS_EXTENSION_HANDOFF_KEY);
-      return text;
-    }
-  } catch {
-    /* Expo Go or module unavailable */
-  }
-  return null;
 }
 
 export function useShareHandoff(navReady: boolean) {

@@ -31,6 +31,15 @@ docker compose up --build
 docker compose exec api alembic upgrade head
 ```
 
+For **Discover / carousel** smoke tests against Postgres, optionally insert demo `community_events`:
+
+```bash
+python3 scripts/seed_discovery_demo.py --dry-run   # verify DB + table
+python3 scripts/seed_discovery_demo.py              # optional demo rows
+```
+
+Use `--organizer-user-id <Supabase-user-uuid>` so the mobile “Follow organizer” flow matches a real account.
+
 API is at `http://localhost:8000`.
 
 ```bash
@@ -66,15 +75,24 @@ If `SUPABASE_JWKS_URL` is unset, the API **only** falls back to a random user id
 alembic upgrade head
 ```
 
-## Worker
+## Workers (Docker Compose)
 
-This repo runs two background workers via Docker Compose:
+Keep **Redis** and these services up for background behavior (same stack as `docker compose up`):
 
-- `scheduler`: persists one-shot traffic-check jobs in Postgres (APScheduler `SQLAlchemyJobStore`) and publishes `event.due_for_traffic_check` to Redis when a job fires.
-- `traffic_worker`: subscribes to `event.due_for_traffic_check`, looks up the user's `home` location as the origin (falls back to venue), calls Google Maps Distance Matrix, and dispatches `ScheduleTrafficAlert`.
-- `outbox_publisher`: publishes transactional outbox messages to Redis topics (`event.confirmed`, `event.cancelled`, `alert.scheduled`).
-- `scheduler_sideeffects`: subscribes to `event.confirmed`/`event.cancelled` and schedules/cancels APScheduler jobs.
-- `push_sideeffects`: subscribes to `alert.scheduled` and schedules pushes (currently no-op push client).
+| Service | Role |
+| --- | --- |
+| `scheduler` | Runs APScheduler jobs persisted in Postgres (traffic checks, **snooze / delayed push** jobs, etc.). |
+| `traffic_worker` | Consumes `event.due_for_traffic_check`, calls Maps, schedules traffic alerts. |
+| `outbox_publisher` | Publishes outbox rows to Redis (`event.confirmed`, `event.cancelled`, `alert.scheduled`). |
+| `scheduler_sideeffects` | Subscribes to confirm/cancel events and schedules or cancels scheduler jobs. |
+| `push_sideeffects` | Subscribes to `alert.scheduled` and schedules one-shot Expo push jobs on the scheduler. |
+| `push_sender` | Sends notifications via **Expo Push API** — set **`EXPO_ACCESS_TOKEN`** or pushes never leave the worker. |
+| `calendar_sideeffects` | Optional Google Calendar sync side effects — set **`GOOGLE_CALENDAR_CREDENTIALS_JSON`** if used. |
+| `community_embeddings_worker` | Maintains community listing embeddings when pgvector + pipeline are enabled. |
+
+**Mobile snooze reminders** depend on: API → scheduler job → `push_sideeffects` → `push_sender` (with `EXPO_ACCESS_TOKEN`). If only `api` is running, snooze HTTP succeeds but no notification is delivered.
+
+**Discover / feed / carousel** depend on: Postgres schema from **`alembic upgrade head`** (including `community_events` when migrations apply), plus rows in `community_events` (your data or `scripts/seed_discovery_demo.py`).
 
 ### Outbox retention
 
@@ -127,7 +145,7 @@ Two scripts handle this end to end:
 | Script | When to run | What it does |
 |---|---|---|
 | `deploy/gcp/provision-vm.sh` | once per VM | reserves a static IP, creates the VM, installs Docker via startup script, opens TCP `:8000` |
-| `deploy/gcp/deploy.sh` | every deploy | tar-streams source to `/opt/eventflow`, copies env file, runs `docker compose up --build`, applies migrations, installs systemd unit, health-checks |
+| `deploy/gcp/deploy.sh` | every deploy | tar-streams source to `/opt/eventflow`, copies env file, runs `docker compose up --build`, applies migrations, installs systemd unit, health-checks; writes **`apps/mobile/.env.deployment`** with `EXPO_PUBLIC_EVENTFLOW_API_URL` from the VM’s current public IP (restart Expo to pick it up; `.env.local` overrides if set) |
 
 ### One-time setup
 
@@ -152,6 +170,8 @@ bash deploy/gcp/deploy.sh
 ```
 
 Re-run any time after a code change. It is idempotent.
+
+On success, the script regenerates **`apps/mobile/.env.deployment`** (gitignored) so the Expo app’s default API base URL tracks the VM address without hand-editing. Keep **`EXPO_PUBLIC_EVENTFLOW_API_URL`** unset in **`.env.local`** if you want that file to apply; set it there only when you need to override (e.g. local backend).
 
 Common flags:
 

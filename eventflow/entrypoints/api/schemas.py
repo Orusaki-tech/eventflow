@@ -194,6 +194,7 @@ class CommunityEventUpsertRequest(BaseModel):
     start_time: datetime
     venue: str
     description: str | None = None
+    poster_image_uri: str | None = Field(default=None, max_length=4096)
 
 
 class CommunityEventResponse(BaseModel):
@@ -203,6 +204,7 @@ class CommunityEventResponse(BaseModel):
     start_time: datetime
     venue: str
     description: str | None = None
+    poster_image_uri: str | None = None
 
 
 class VenueResponse(BaseModel):
@@ -285,6 +287,8 @@ class GroupResponse(BaseModel):
     group_id: UUID
     name: str
     owner_user_id: UUID
+    invite_token: str | None = None
+    group_type: str | None = None
 
 
 class GroupMemberAddRequest(BaseModel):
@@ -313,4 +317,89 @@ class PlaceDetailsResponse(BaseModel):
     formatted_address: str | None = None
     lat: float
     lng: float
+
+
+class SnoozeAlertRequest(BaseModel):
+    minutes: int = Field(default=10, ge=1, le=180)
+
+
+class DeviceCalendarPutRequest(BaseModel):
+    external_event_id: str = Field(min_length=1, max_length=512)
+    calendar_id: str | None = Field(default=None, max_length=512)
+
+
+class SharedLinkListingStatusResponse(BaseModel):
+    normalized_url: str
+    status: str | None = None
+
+
+class BusinessCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=512)
+    whatsapp_e164: str | None = Field(default=None, max_length=32)
+
+
+class BusinessResponse(BaseModel):
+    business_id: UUID
+    name: str
+    whatsapp_e164: str | None = None
+    verified: bool = False
+
+
+class BusinessPatchRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=512)
+    whatsapp_e164: str | None = Field(default=None, max_length=32)
+
+
+class ListingBusinessAttachRequest(BaseModel):
+    business_id: UUID
+
+
+class ListingShareAliasPutRequest(BaseModel):
+    url: str = Field(min_length=8, max_length=4096)
+
+
+class AdminBusinessVerifiedPatchRequest(BaseModel):
+    verified: bool
+
+
+class EventVideoModerationPatchRequest(BaseModel):
+    moderation_status: Literal["pending", "approved", "rejected"]
+
+
+class ListingAnalyticsRequest(BaseModel):
+    metric_type: Literal["impression", "save", "whatsapp_tap"]
+    community_event_id: UUID | None = None
+    business_id: UUID | None = None
+    meta: dict | None = None
+
+
+class CarouselSlide(BaseModel):
+    kind: Literal["poster", "video"]
+    title: str | None = None
+    subtitle: str | None = None
+    uri: str | None = None
+    image_uri: str | None = None
+
+
+class ListingCarouselResponse(BaseModel):
+    community_event_id: UUID
+    slides: list[CarouselSlide]
+
+
+class BillingCheckoutStubResponse(BaseModel):
+    checkout_url: str
+    provider: Literal["stripe", "mpesa_stub"] = "stripe"
+
+
+class GroupJoinByTokenRequest(BaseModel):
+    invite_token: str = Field(min_length=4, max_length=128)
+
+
+class GroupRsvpRequest(BaseModel):
+    event_id: UUID
+    status: Literal["going", "maybe", "declined"]
+
+
+class GroupPinRequest(BaseModel):
+    event_id: UUID | None = None
 

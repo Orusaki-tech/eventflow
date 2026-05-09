@@ -28,6 +28,13 @@ class CalendarUpsertResult:
     expiry: Optional[datetime]
 
 
+@dataclass(frozen=True)
+class CalendarDeleteResult:
+    access_token: str
+    refresh_token: Optional[str]
+    expiry: Optional[datetime]
+
+
 class AbstractCalendarClient(abc.ABC):
     @abc.abstractmethod
     def upsert_event(
@@ -44,6 +51,17 @@ class AbstractCalendarClient(abc.ABC):
 
     @abc.abstractmethod
     def build_ics(self, *, event: ScheduledEvent) -> str:  # pragma: no cover
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def delete_event(
+        self,
+        *,
+        access_token: str,
+        refresh_token: Optional[str] = None,
+        token_uri: Optional[str] = None,
+        external_id: str,
+    ) -> CalendarDeleteResult:  # pragma: no cover
         raise NotImplementedError
 
 
@@ -100,6 +118,34 @@ class GoogleCalendarClient(AbstractCalendarClient):
             expiry=creds.expiry,
         )
 
+    def delete_event(
+        self,
+        *,
+        access_token: str,
+        refresh_token: Optional[str] = None,
+        token_uri: Optional[str] = None,
+        external_id: str,
+    ) -> CalendarDeleteResult:
+        creds = Credentials(
+            token=access_token,
+            refresh_token=refresh_token,
+            token_uri=token_uri or "https://oauth2.googleapis.com/token",
+            client_id=self._client_info.get("installed", {}).get("client_id")
+            or self._client_info.get("web", {}).get("client_id"),
+            client_secret=self._client_info.get("installed", {}).get("client_secret")
+            or self._client_info.get("web", {}).get("client_secret"),
+            scopes=["https://www.googleapis.com/auth/calendar.events"],
+        )
+        if creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        service = build("calendar", "v3", credentials=creds, cache_discovery=False)
+        service.events().delete(calendarId="primary", eventId=external_id).execute()
+        return CalendarDeleteResult(
+            access_token=str(creds.token),
+            refresh_token=str(creds.refresh_token) if creds.refresh_token else None,
+            expiry=creds.expiry,
+        )
+
     def build_ics(self, *, event: ScheduledEvent) -> str:
         cal = Calendar()
         cal.add("prodid", "-//EventFlow//EN")
@@ -132,6 +178,16 @@ class NoOpCalendarClient(AbstractCalendarClient):
             refresh_token=refresh_token,
             expiry=None,
         )
+
+    def delete_event(
+        self,
+        *,
+        access_token: str,
+        refresh_token: Optional[str] = None,
+        token_uri: Optional[str] = None,
+        external_id: str,
+    ) -> CalendarDeleteResult:
+        return CalendarDeleteResult(access_token=access_token, refresh_token=refresh_token, expiry=None)
 
     def build_ics(self, *, event: ScheduledEvent) -> str:
         return GoogleCalendarClient(credentials_json='{"installed":{}}').build_ics(event=event)

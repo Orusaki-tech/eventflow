@@ -11,7 +11,9 @@ from sqlalchemy.orm import sessionmaker
 
 from eventflow.adapters.orm import start_mappers
 from eventflow.config import get_settings
-from eventflow.service_layer.unit_of_work import SqlAlchemyUnitOfWork
+from eventflow.domain import events as domain_events
+from eventflow.service_layer import handlers
+from eventflow.service_layer.unit_of_work import FakeUnitOfWork, SqlAlchemyUnitOfWork
 from eventflow.workers.scheduler import build_scheduler_client
 
 
@@ -40,7 +42,12 @@ def handle_message(
 
     if topic == "event.cancelled":
         event_id = UUID(payload["event_id"])
-        scheduler_client.cancel_traffic_check(event_id=event_id)
+        prev = handlers.scheduler_client
+        handlers.scheduler_client = scheduler_client
+        try:
+            handlers.cancel_alerts(domain_events.EventCancelled(event_id=event_id), FakeUnitOfWork())
+        finally:
+            handlers.scheduler_client = prev
         return
 
 

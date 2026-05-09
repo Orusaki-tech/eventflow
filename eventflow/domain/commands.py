@@ -48,6 +48,7 @@ class UpsertCommunityEvent(Command):
     start_time: datetime
     venue: str
     description: str | None = None
+    poster_image_uri: str | None = None
 
 
 @dataclass(frozen=True)

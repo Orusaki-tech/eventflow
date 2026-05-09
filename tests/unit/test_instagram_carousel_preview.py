@@ -20,7 +20,9 @@ def test_instagram_carousel_preview_fetches_each_sidecar_slide(monkeypatch):
 
     def fake_fetch(*, url: str, extra_headers: dict[str, str] | None = None, timeout_seconds: float = 25.0, max_bytes: int = 15_000_000):
         fetched.append(url)
-        return b"\xff\xd8\xff fake", "image/jpeg"
+        # Preview dedupes identical slide bytes; vary payload per URL so both slides count as distinct.
+        tag = b"a" if url.endswith("a.webp") else b"b"
+        return b"\xff\xd8\xff fake" + tag, "image/jpeg"
 
     monkeypatch.setattr("eventflow.service_layer.handlers._fetch_remote_image_bytes", fake_fetch)
 

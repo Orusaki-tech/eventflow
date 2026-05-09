@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import uuid4
 
 from sqlalchemy import (
+    Boolean,
     LargeBinary,
     Column,
     DateTime,
@@ -176,7 +177,10 @@ community_events = Table(
     Column("start_time", DateTime(timezone=True), nullable=False, index=True),
     Column("venue", String(512), nullable=False),
     Column("description", Text, nullable=True),
+    Column("poster_image_uri", Text, nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("sponsored_rank", Integer, nullable=False, default=0),
+    Column("verified_badge", Boolean, nullable=False, default=False),
 )
 
 community_event_embeddings = Table(
@@ -200,6 +204,9 @@ groups = Table(
     Column("name", String(256), nullable=False),
     Column("owner_user_id", PG_UUID(as_uuid=True), nullable=False, index=True),
     Column("created_at", DateTime(timezone=True), nullable=False, index=True),
+    Column("group_type", String(32), nullable=False, default="friend"),
+    Column("invite_token", String(64), nullable=True),
+    Column("pinned_event_id", PG_UUID(as_uuid=True), nullable=True),
 )
 
 group_memberships = Table(

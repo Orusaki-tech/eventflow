@@ -29,16 +29,31 @@ def run_traffic_check(*, event_id: str, user_id: str) -> None:
     )
 
 
-def run_push_due(*, user_id: str, title: str, body: str) -> None:
+def run_push_due(
+    *,
+    user_id: str,
+    title: str,
+    body: str,
+    event_id: str | None = None,
+    venue_lat: float | None = None,
+    venue_lng: float | None = None,
+    action: str | None = None,
+) -> None:
     settings = get_settings()
     if not settings.redis_url:
         raise RuntimeError("REDIS_URL is required")
 
     r = redis.Redis.from_url(settings.redis_url, decode_responses=True)
-    r.publish(
-        "push.due",
-        json.dumps({"user_id": user_id, "title": title, "body": body}),
-    )
+    payload: dict = {"user_id": user_id, "title": title, "body": body}
+    if event_id:
+        payload["event_id"] = event_id
+    if venue_lat is not None:
+        payload["venue_lat"] = venue_lat
+    if venue_lng is not None:
+        payload["venue_lng"] = venue_lng
+    if action:
+        payload["action"] = action
+    r.publish("push.due", json.dumps(payload))
 
 
 @dataclass(frozen=True)
@@ -70,7 +85,19 @@ class SchedulerClient:
         except Exception:
             return
 
-    def schedule_push_due(self, *, job_key: str, user_id: str, run_at: datetime, title: str, body: str) -> None:
+    def schedule_push_due(
+        self,
+        *,
+        job_key: str,
+        user_id: str,
+        run_at: datetime,
+        title: str,
+        body: str,
+        event_id: str | None = None,
+        venue_lat: float | None = None,
+        venue_lng: float | None = None,
+        action: str | None = None,
+    ) -> None:
         job_id = f"push:{job_key}"
         self.scheduler.add_job(
             func=run_push_due,
@@ -78,7 +105,15 @@ class SchedulerClient:
             run_date=run_at,
             id=job_id,
             replace_existing=True,
-            kwargs={"user_id": user_id, "title": title, "body": body},
+            kwargs={
+                "user_id": user_id,
+                "title": title,
+                "body": body,
+                "event_id": event_id,
+                "venue_lat": venue_lat,
+                "venue_lng": venue_lng,
+                "action": action,
+            },
         )
 
     def cancel_push_due(self, *, job_key: str) -> None:

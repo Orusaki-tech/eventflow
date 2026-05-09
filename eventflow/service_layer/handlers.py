@@ -77,17 +77,65 @@ class AbstractSchedulerClient(Protocol):
 
     def cancel_traffic_check(self, *, event_id) -> None: ...
 
+    def schedule_push_due(
+        self,
+        *,
+        job_key: str,
+        user_id: str,
+        run_at: datetime,
+        title: str,
+        body: str,
+        event_id: str | None = None,
+        venue_lat: float | None = None,
+        venue_lng: float | None = None,
+        action: str | None = None,
+    ) -> None: ...
+
+    def cancel_push_due(self, *, job_key: str) -> None: ...
+
 
 class FakeSchedulerClient:
     def __init__(self) -> None:
         self.scheduled: list[tuple[str, datetime]] = []
         self.cancelled: list[str] = []
+        self.push_scheduled: list[dict] = []
+        self.push_cancelled: list[str] = []
 
     def schedule_traffic_check(self, *, event_id, user_id, run_at: datetime) -> None:
         self.scheduled.append((str(event_id), run_at))
 
     def cancel_traffic_check(self, *, event_id) -> None:
         self.cancelled.append(str(event_id))
+
+    def schedule_push_due(
+        self,
+        *,
+        job_key: str,
+        user_id: str,
+        run_at: datetime,
+        title: str,
+        body: str,
+        event_id: str | None = None,
+        venue_lat: float | None = None,
+        venue_lng: float | None = None,
+        action: str | None = None,
+    ) -> None:
+        self.push_scheduled.append(
+            {
+                "job_key": job_key,
+                "user_id": user_id,
+                "run_at": run_at,
+                "title": title,
+                "body": body,
+                "event_id": event_id,
+                "venue_lat": venue_lat,
+                "venue_lng": venue_lng,
+                "action": action,
+            }
+        )
+
+    def cancel_push_due(self, *, job_key: str) -> None:
+        self.push_cancelled.append(job_key)
 
 
 def handle_capture_event_image(
@@ -665,6 +713,7 @@ def handle_upsert_community_event(cmd: commands.UpsertCommunityEvent, uow: Abstr
         start_time=cmd.start_time,
         venue=cmd.venue,
         description=cmd.description,
+        poster_image_uri=cmd.poster_image_uri,
         created_at=datetime.now(timezone.utc),
     )
     with uow:
@@ -680,6 +729,7 @@ def handle_upsert_community_event(cmd: commands.UpsertCommunityEvent, uow: Abstr
         "start_time": evt.start_time,
         "venue": evt.venue,
         "description": evt.description,
+        "poster_image_uri": evt.poster_image_uri,
     }
 
 
@@ -862,38 +912,37 @@ def sync_to_calendar(evt, uow: AbstractUnitOfWork) -> None:
     if calendar_client is None:
         return
 
-    with uow:
-        scheduled = uow.events.get(evt.event_id)
-        if scheduled is None:
-            return
+    scheduled = uow.events.get(evt.event_id)
+    if scheduled is None:
+        return
 
-        token = uow.calendar_tokens.get(scheduled.user_id)
-        if token is None:
-            # No OAuth yet: API can still serve .ics via a fallback route.
-            return
+    token = uow.calendar_tokens.get(scheduled.user_id)
+    if token is None:
+        # No OAuth yet: API can still serve .ics via a fallback route.
+        return
 
-        result = calendar_client.upsert_event(
-            user_id=str(scheduled.user_id),
-            event=scheduled,
-            access_token=token.access_token,
-            refresh_token=token.refresh_token,
+    result = calendar_client.upsert_event(
+        user_id=str(scheduled.user_id),
+        event=scheduled,
+        access_token=token.access_token,
+        refresh_token=token.refresh_token,
+        token_uri=token.token_uri,
+        external_id=getattr(scheduled, "calendar_external_id", None),
+    )
+    scheduled.calendar_external_id = result.ref.external_id
+
+    uow.calendar_tokens.upsert(
+        CalendarToken(
+            user_id=token.user_id,
+            provider=token.provider,
+            access_token=result.access_token,
+            refresh_token=result.refresh_token,
             token_uri=token.token_uri,
-            external_id=getattr(scheduled, "calendar_external_id", None),
+            scopes=token.scopes,
+            expiry=result.expiry,
         )
-        scheduled.calendar_external_id = result.ref.external_id
-
-        uow.calendar_tokens.upsert(
-            CalendarToken(
-                user_id=token.user_id,
-                provider=token.provider,
-                access_token=result.access_token,
-                refresh_token=result.refresh_token,
-                token_uri=token.token_uri,
-                scopes=token.scopes,
-                expiry=result.expiry,
-            )
-        )
-        uow.commit()
+    )
+    uow.commit()
 
 
 def schedule_traffic_monitor(evt, uow: AbstractUnitOfWork) -> None:
@@ -930,7 +979,38 @@ def register_push_notification(evt, uow: AbstractUnitOfWork) -> None:
 
 
 def cancel_calendar_entry(evt, uow: AbstractUnitOfWork) -> None:
-    return
+    if not isinstance(evt, domain_events.EventCancelled):
+        return
+    if calendar_client is None:
+        return
+    scheduled = uow.events.get(evt.event_id)
+    if scheduled is None:
+        return
+    external_id = getattr(scheduled, "calendar_external_id", None)
+    if not external_id:
+        return
+    token = uow.calendar_tokens.get(scheduled.user_id)
+    if token is None:
+        return
+    result = calendar_client.delete_event(
+        access_token=token.access_token,
+        refresh_token=token.refresh_token,
+        token_uri=token.token_uri,
+        external_id=str(external_id),
+    )
+    setattr(scheduled, "calendar_external_id", None)
+    uow.calendar_tokens.upsert(
+        CalendarToken(
+            user_id=token.user_id,
+            provider=token.provider,
+            access_token=result.access_token,
+            refresh_token=result.refresh_token,
+            token_uri=token.token_uri,
+            scopes=token.scopes,
+            expiry=result.expiry,
+        )
+    )
+    uow.commit()
 
 
 def cancel_alerts(evt, uow: AbstractUnitOfWork) -> None:
@@ -939,4 +1019,5 @@ def cancel_alerts(evt, uow: AbstractUnitOfWork) -> None:
     if scheduler_client is None:
         return
     scheduler_client.cancel_traffic_check(event_id=evt.event_id)
+    scheduler_client.cancel_push_due(job_key=f"user_snooze:{evt.event_id}")
 

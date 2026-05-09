@@ -52,6 +52,8 @@ class Settings(BaseSettings):
 
     expo_access_token: Optional[str] = Field(default=None, alias="EXPO_ACCESS_TOKEN")
     admin_user_ids_csv: str | None = Field(default=None, alias="ADMIN_USER_IDS")
+    # Bearer-equivalent for moderation / verified toggles from tooling or portal backends.
+    admin_api_token: Optional[str] = Field(default=None, alias="ADMIN_API_TOKEN")
 
     # yt-dlp (social link metadata)
     # Optional path to a Netscape cookies.txt file to improve extraction reliability

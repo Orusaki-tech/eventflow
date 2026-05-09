@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 import redis
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from eventflow.adapters.orm import start_mappers
@@ -46,13 +46,30 @@ def main() -> None:
             if evt is None:
                 uow.commit()
                 continue
+            if getattr(evt, "cancelled_at", None) is not None:
+                uow.commit()
+                continue
+            venue_lat = venue_lng = None
+            vid = getattr(evt, "venue_id", None)
+            sess = getattr(uow, "session", None)
+            if sess is not None and vid is not None:
+                row = sess.execute(
+                    text("SELECT lat, lng FROM venues WHERE id = :id LIMIT 1"),
+                    {"id": str(vid)},
+                ).first()
+                if row is not None:
+                    venue_lat, venue_lng = float(row[0]), float(row[1])
             job_key = f"{event_id}:{int(trigger_at.timestamp())}"
             scheduler_client.schedule_push_due(
                 job_key=job_key,
                 user_id=str(evt.user_id),
                 run_at=trigger_at,
-                title="EventFlow alert",
-                body="Leave now",
+                title="Leave now",
+                body=f"Time to leave for {evt.title}",
+                event_id=str(event_id),
+                venue_lat=venue_lat,
+                venue_lng=venue_lng,
+                action="leave_now",
             )
             uow.commit()
 

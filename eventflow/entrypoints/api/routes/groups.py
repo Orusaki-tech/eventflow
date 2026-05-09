@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import secrets
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -10,8 +11,11 @@ from eventflow.adapters.repository import EventShare, Group, GroupMembership
 from eventflow.entrypoints.api.schemas import (
     GroupCreateRequest,
     GroupEventShareRequest,
+    GroupJoinByTokenRequest,
     GroupMemberAddRequest,
+    GroupPinRequest,
     GroupResponse,
+    GroupRsvpRequest,
 )
 from eventflow.entrypoints.dependencies import get_current_user_id, get_session, get_uow
 
@@ -29,14 +33,20 @@ async def create_group(
     if not name:
         raise HTTPException(status_code=400, detail="name is required")
     now = datetime.now(timezone.utc)
-    g = Group(name=name, owner_user_id=user_id, created_at=now)
+    g = Group(name=name, owner_user_id=user_id, created_at=now, invite_token=secrets.token_urlsafe(12), group_type="friend")
     with uow:
         if not hasattr(uow, "session"):
             raise HTTPException(status_code=500, detail="DB not configured")
         uow.session.add(g)  # type: ignore[attr-defined]
         uow.session.add(GroupMembership(group_id=g.id, user_id=user_id, role="owner", created_at=now))  # type: ignore[attr-defined]
         uow.commit()
-    return GroupResponse(group_id=g.id, name=g.name, owner_user_id=g.owner_user_id)
+    return GroupResponse(
+        group_id=g.id,
+        name=g.name,
+        owner_user_id=g.owner_user_id,
+        invite_token=g.invite_token,
+        group_type=g.group_type,
+    )
 
 
 @router.get("/groups", status_code=status.HTTP_200_OK, response_model=list[GroupResponse])
@@ -157,4 +167,85 @@ async def list_group_events(
         {"group_id": str(group_id), "user_id": str(user_id), "offset_mins": int(tz_offset_minutes), "limit": int(limit)},
     )
     return [dict(r._mapping) for r in results]
+
+
+@router.post("/groups/join-by-token", status_code=status.HTTP_201_CREATED)
+async def join_group_by_token(
+    body: GroupJoinByTokenRequest,
+    user_id=Depends(get_current_user_id),
+    uow=Depends(get_uow),
+):
+    now = datetime.now(timezone.utc)
+    with uow:
+        if not hasattr(uow, "session"):
+            raise HTTPException(status_code=500, detail="DB not configured")
+        row = uow.session.execute(  # type: ignore[attr-defined]
+            text("SELECT id FROM groups WHERE invite_token = :t LIMIT 1"),
+            {"t": body.invite_token.strip()},
+        ).first()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Invalid invite token")
+        gid = row[0]
+        uow.session.merge(GroupMembership(group_id=gid, user_id=user_id, role="member", created_at=now))  # type: ignore[attr-defined]
+        uow.commit()
+    return {"ok": True, "group_id": str(gid)}
+
+
+@router.post("/groups/{group_id}/rsvp", status_code=status.HTTP_201_CREATED)
+async def rsvp_group_event(
+    group_id: UUID,
+    body: GroupRsvpRequest,
+    user_id=Depends(get_current_user_id),
+    uow=Depends(get_uow),
+):
+    now = datetime.now(timezone.utc)
+    with uow:
+        if not hasattr(uow, "session"):
+            raise HTTPException(status_code=500, detail="DB not configured")
+        mem = uow.session.get(GroupMembership, {"group_id": group_id, "user_id": user_id})  # type: ignore[attr-defined]
+        if mem is None:
+            raise HTTPException(status_code=403, detail="Not a group member")
+        uow.session.execute(  # type: ignore[attr-defined]
+            text(
+                """
+                INSERT INTO group_rsvps (group_id, user_id, event_id, status, updated_at)
+                VALUES (:g, :u, :e, :st, :now)
+                ON CONFLICT (group_id, user_id, event_id) DO UPDATE SET
+                  status = EXCLUDED.status,
+                  updated_at = EXCLUDED.updated_at
+                """
+            ),
+            {
+                "g": str(group_id),
+                "u": str(user_id),
+                "e": str(body.event_id),
+                "st": body.status,
+                "now": now,
+            },
+        )
+        uow.commit()
+    return {"ok": True}
+
+
+@router.patch("/groups/{group_id}/pin", status_code=status.HTTP_200_OK)
+async def pin_group_event(
+    group_id: UUID,
+    body: GroupPinRequest,
+    user_id=Depends(get_current_user_id),
+    uow=Depends(get_uow),
+):
+    with uow:
+        if not hasattr(uow, "session"):
+            raise HTTPException(status_code=500, detail="DB not configured")
+        g = uow.session.get(Group, group_id)  # type: ignore[attr-defined]
+        if g is None:
+            raise HTTPException(status_code=404, detail="Group not found")
+        if g.owner_user_id != user_id:
+            raise HTTPException(status_code=403, detail="Only owner can pin")
+        uow.session.execute(  # type: ignore[attr-defined]
+            text("UPDATE groups SET pinned_event_id = :e WHERE id = :g"),
+            {"g": str(group_id), "e": str(body.event_id) if body.event_id else None},
+        )
+        uow.commit()
+    return {"ok": True}
 

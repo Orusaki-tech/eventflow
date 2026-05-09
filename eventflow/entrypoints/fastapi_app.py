@@ -4,6 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -11,7 +12,22 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from eventflow.api.errors import domain_error_handler
 from eventflow.domain.exceptions import DomainError
-from eventflow.entrypoints.api.routes import alerts, calendar_oauth, capture, discovery, drafts, events, groups, health, media, places, share, users, venues
+from eventflow.entrypoints.api.routes import (
+    alerts,
+    calendar_oauth,
+    capture,
+    discovery,
+    drafts,
+    events,
+    groups,
+    health,
+    media,
+    places,
+    product_gap,
+    share,
+    users,
+    venues,
+)
 from eventflow.entrypoints.api.problem import problem
 from eventflow.entrypoints.dependencies import get_calendar_client, get_push_client
 from eventflow.config import get_settings
@@ -133,8 +149,20 @@ def create_app() -> FastAPI:
     app.include_router(venues.router, prefix="/api/v1")
     app.include_router(places.router, prefix="/api/v1")
     app.include_router(groups.router, prefix="/api/v1")
+    app.include_router(product_gap.router, prefix="/api/v1")
     app.include_router(calendar_oauth.router, prefix="/api/v1")
     app.include_router(health.router, prefix="/api/v1")
+
+    @app.get("/portal", include_in_schema=False)
+    async def business_portal_stub() -> HTMLResponse:
+        return HTMLResponse(
+            "<!DOCTYPE html><html><head><meta charset='utf-8'><title>EventFlow Business Portal</title></head>"
+            "<body><h1>EventFlow Business Portal</h1>"
+            "<p>Use the mobile app for attendee flows. Claim listings and upload videos via API:</p>"
+            "<ul><li>POST /api/v1/businesses</li><li>POST /api/v1/listing-analytics</li>"
+            "<li>POST /api/v1/event-videos</li></ul></body></html>"
+        )
+
     return app
 
 

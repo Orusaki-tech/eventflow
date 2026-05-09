@@ -29,9 +29,19 @@ def _expo_headers(*, access_token: str | None) -> dict:
     return headers
 
 
-def send_expo_push(*, access_token: str | None, to_tokens: list[str], title: str, body: str) -> list[dict]:
+def send_expo_push(
+    *,
+    access_token: str | None,
+    to_tokens: list[str],
+    title: str,
+    body: str,
+    data: dict[str, str] | None = None,
+) -> list[dict]:
     # Expo supports batching; keep it simple and send one request with N messages.
-    messages = [{"to": t, "title": title, "body": body} for t in to_tokens]
+    msg_body: dict = {"title": title, "body": body}
+    if data:
+        msg_body["data"] = data
+    messages = [{"to": t, **msg_body} for t in to_tokens]
     cfg = ExpoConfig()
     with httpx.Client(timeout=cfg.timeout_s) as client:
         resp = client.post(cfg.endpoint, headers=_expo_headers(access_token=access_token), json=messages)
@@ -65,6 +75,15 @@ def main() -> None:
         user_id = UUID(payload["user_id"])
         title = payload.get("title") or "EventFlow"
         body = payload.get("body") or ""
+        extras: dict[str, str] = {}
+        if payload.get("event_id"):
+            extras["eventId"] = str(payload["event_id"])
+        if payload.get("venue_lat") is not None:
+            extras["venueLat"] = str(payload["venue_lat"])
+        if payload.get("venue_lng") is not None:
+            extras["venueLng"] = str(payload["venue_lng"])
+        if payload.get("action"):
+            extras["action"] = str(payload["action"])
 
         with uow:
             tokens = uow.device_push_tokens.list_active(user_id=user_id)
@@ -75,7 +94,13 @@ def main() -> None:
             continue
 
         try:
-            results = send_expo_push(access_token=settings.expo_access_token, to_tokens=expo_tokens, title=title, body=body)
+            results = send_expo_push(
+                access_token=settings.expo_access_token,
+                to_tokens=expo_tokens,
+                title=title,
+                body=body,
+                data=extras if extras else None,
+            )
         except Exception as e:
             logging.exception("expo_push.send_failed", extra={"error": repr(e)})
             continue

@@ -12,6 +12,7 @@ import { EventDetailScreen } from "../screens/EventDetailScreen";
 import { CarouselSlidePickScreen } from "../screens/CarouselSlidePickScreen";
 import { ImportLinkScreen } from "../screens/ImportLinkScreen";
 import { ManualVenueScreen } from "../screens/ManualVenueScreen";
+import { CommunityListingDetailScreen } from "../screens/CommunityListingDetailScreen";
 import { OnboardingScreen } from "../screens/OnboardingScreen";
 import { PosterImportScreen } from "../screens/PosterImportScreen";
 import { SharedMediaImportScreen } from "../screens/SharedMediaImportScreen";
@@ -125,6 +126,11 @@ export function RootNavigator() {
         <Stack.Screen name="Confirmed" component={ConfirmedScreen} options={{ title: "Scheduled" }} />
         <Stack.Screen name="EventDetail" component={EventDetailScreen} options={{ title: "Review event" }} />
         <Stack.Screen name="ManualVenue" component={ManualVenueScreen} options={{ title: "Add venue" }} />
+        <Stack.Screen
+          name="CommunityListingDetail"
+          component={CommunityListingDetailScreen}
+          options={{ title: "Listing" }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

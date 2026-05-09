@@ -19,6 +19,7 @@ import { PosterAssetImage } from "../components/PosterAssetImage";
 import { UpcomingEventCard } from "../components/UpcomingEventCard";
 import { getEventPosterAssetId } from "../lib/thumbnail";
 import { dedupeByEventFingerprint } from "../lib/dedupeEvents";
+import { syncConfirmedEventToDeviceCalendar } from "../lib/deviceCalendar";
 import { formatFriendlyEventDateTime } from "../lib/eventDateTime";
 import type { RootStackParamList } from "../navigation/types";
 import { navigationRef } from "../navigation/navigationRef";
@@ -106,6 +107,17 @@ export function ConfirmedScreen({ navigation, route }: Props) {
         if (cancelled) return;
         setToday(t);
         setUpcoming(u);
+        const row = [...t, ...u].find((r) => r.id === eventId);
+        if (row) {
+          await syncConfirmedEventToDeviceCalendar({
+            apiBaseUrl,
+            accessToken,
+            eventId,
+            title: row.title,
+            startIso: row.start_time,
+            venue: row.venue,
+          });
+        }
       } catch (e: unknown) {
         if (e instanceof EventflowApiError && e.status === 401) await refreshSession().catch(() => undefined);
         if (!cancelled) {

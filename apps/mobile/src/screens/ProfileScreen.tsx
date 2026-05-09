@@ -39,7 +39,7 @@ function budgetAccentColor(band: BudgetSummary["band"], dangerHex: string): stri
   return undefined;
 }
 
-export function ProfileScreen({}: Props) {
+export function ProfileScreen({ navigation }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles((c) => ({
     root: { flex: 1, backgroundColor: c.bg },
@@ -175,6 +175,14 @@ export function ProfileScreen({}: Props) {
         <AppText tone="secondary" style={styles.email}>
           {email ?? "Signed in"}
         </AppText>
+      </Card>
+
+      <Card style={styles.card}>
+        <AppText variant="title">Promoter</AppText>
+        <AppText variant="labelSmall" tone="tertiary" style={styles.hint}>
+          Create a listing business profile and open the billing demo checkout stub.
+        </AppText>
+        <Button label="Listing business" variant="outline" onPress={() => navigation.navigate("BusinessProfile")} fullWidth />
       </Card>
 
       <Card style={styles.card}>

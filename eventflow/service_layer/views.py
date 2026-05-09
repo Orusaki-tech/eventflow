@@ -250,8 +250,21 @@ def list_community_events(*, session: Any, limit: int = 50) -> List[dict]:
                    e.title,
                    e.start_time,
                    e.venue,
-                   e.description
+                   e.description,
+                   e.poster_image_uri,
+                   bl.business_id,
+                   b.whatsapp_e164,
+                   v.hero_video_uri
             FROM community_events e
+            LEFT JOIN business_listing_attachments bl ON bl.community_event_id = e.id
+            LEFT JOIN businesses b ON b.id = bl.business_id
+            LEFT JOIN LATERAL (
+              SELECT ev.storage_uri AS hero_video_uri
+              FROM event_videos ev
+              WHERE ev.community_event_id = e.id AND ev.moderation_status = 'approved'
+              ORDER BY ev.created_at ASC
+              LIMIT 1
+            ) v ON TRUE
             ORDER BY e.start_time DESC
             LIMIT :limit
             """
@@ -271,9 +284,22 @@ def search_community_events(*, session: Any, query_vector: str, limit: int = 20)
                    e.start_time,
                    e.venue,
                    e.description,
+                   e.poster_image_uri,
+                   bl.business_id,
+                   b.whatsapp_e164,
+                   v.hero_video_uri,
                    (emb.embedding <-> (:qvec)::vector) AS distance
             FROM community_event_embeddings emb
             JOIN community_events e ON e.id = emb.community_event_id
+            LEFT JOIN business_listing_attachments bl ON bl.community_event_id = e.id
+            LEFT JOIN businesses b ON b.id = bl.business_id
+            LEFT JOIN LATERAL (
+              SELECT ev.storage_uri AS hero_video_uri
+              FROM event_videos ev
+              WHERE ev.community_event_id = e.id AND ev.moderation_status = 'approved'
+              ORDER BY ev.created_at ASC
+              LIMIT 1
+            ) v ON TRUE
             ORDER BY emb.embedding <-> (:qvec)::vector ASC
             LIMIT :limit
             """
@@ -281,4 +307,73 @@ def search_community_events(*, session: Any, query_vector: str, limit: int = 20)
         {"qvec": query_vector, "limit": int(limit)},
     )
     return [dict(r._mapping) for r in results]
+
+
+def list_feed_home(*, user_id: UUID, session: Any | None, limit: int = 50) -> List[dict]:
+    """Compose discovery feed: followed organisers plus trending/sponsored community listings."""
+    if session is None:
+        return []
+    merged: dict[str, dict] = {}
+    followed = session.execute(
+        text(
+            """
+            SELECT e.id, e.title, e.start_time, e.venue, e.user_id, e.sponsored_rank,
+                   e.poster_image_uri,
+                   bl.business_id,
+                   b.whatsapp_e164,
+                   v.hero_video_uri
+            FROM community_events e
+            INNER JOIN follows f ON f.following_user_id = e.user_id AND f.follower_user_id = :uid
+            LEFT JOIN business_listing_attachments bl ON bl.community_event_id = e.id
+            LEFT JOIN businesses b ON b.id = bl.business_id
+            LEFT JOIN LATERAL (
+              SELECT ev.storage_uri AS hero_video_uri
+              FROM event_videos ev
+              WHERE ev.community_event_id = e.id AND ev.moderation_status = 'approved'
+              ORDER BY ev.created_at ASC
+              LIMIT 1
+            ) v ON TRUE
+            WHERE e.start_time > NOW()
+            ORDER BY e.start_time ASC
+            LIMIT :lim
+            """
+        ),
+        {"uid": str(user_id), "lim": int(limit)},
+    )
+    for r in followed:
+        merged[str(r.id)] = dict(r._mapping)
+
+    trending = session.execute(
+        text(
+            """
+            SELECT e.id, e.title, e.start_time, e.venue, e.user_id, e.sponsored_rank,
+                   e.poster_image_uri,
+                   bl.business_id,
+                   b.whatsapp_e164,
+                   v.hero_video_uri
+            FROM community_events e
+            LEFT JOIN business_listing_attachments bl ON bl.community_event_id = e.id
+            LEFT JOIN businesses b ON b.id = bl.business_id
+            LEFT JOIN LATERAL (
+              SELECT ev.storage_uri AS hero_video_uri
+              FROM event_videos ev
+              WHERE ev.community_event_id = e.id AND ev.moderation_status = 'approved'
+              ORDER BY ev.created_at ASC
+              LIMIT 1
+            ) v ON TRUE
+            WHERE e.start_time > NOW()
+            ORDER BY e.sponsored_rank DESC, e.start_time ASC
+            LIMIT :lim
+            """
+        ),
+        {"lim": int(limit)},
+    )
+    for r in trending:
+        k = str(r.id)
+        if k not in merged:
+            merged[k] = dict(r._mapping)
+
+    items = list(merged.values())
+    items.sort(key=lambda row: (-int(row.get("sponsored_rank") or 0), row.get("start_time")))
+    return items[: int(limit)]
 

@@ -237,6 +237,9 @@ class CommunityEvent:
     start_time: datetime
     venue: str
     description: str | None = None
+    poster_image_uri: str | None = None
+    sponsored_rank: int = 0
+    verified_badge: bool = False
     created_at: datetime | None = None
     id: UUID = field(default_factory=uuid4)
 
@@ -393,6 +396,9 @@ class FakeOAuthStateRepository(AbstractOAuthStateRepository):
 class Group:
     name: str
     owner_user_id: UUID
+    group_type: str = "friend"
+    invite_token: str | None = None
+    pinned_event_id: UUID | None = None
     created_at: datetime | None = None
     id: UUID = field(default_factory=uuid4)
 

@@ -3,14 +3,17 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React, { useMemo } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { HomeScreen } from "../screens/HomeScreen";
+import { BusinessProfileScreen } from "../screens/BusinessProfileScreen";
 import { CalendarScreen } from "../screens/CalendarScreen";
 import { CaptureScreen } from "../screens/CaptureScreen";
+import { DiscoverHomeScreen } from "../screens/DiscoverHomeScreen";
+import { HomeScreen } from "../screens/HomeScreen";
 import { ProfileScreen } from "../screens/ProfileScreen";
 import { useTheme } from "../design/theme";
 import type {
   CalendarStackParamList,
   CaptureStackParamList,
+  DiscoverStackParamList,
   InboxStackParamList,
   MainTabParamList,
   ProfileStackParamList,
@@ -19,6 +22,7 @@ import type {
 const InboxStack = createNativeStackNavigator<InboxStackParamList>();
 const CalendarStack = createNativeStackNavigator<CalendarStackParamList>();
 const CaptureStack = createNativeStackNavigator<CaptureStackParamList>();
+const DiscoverStack = createNativeStackNavigator<DiscoverStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -63,11 +67,21 @@ function CaptureStackNavigator() {
   );
 }
 
+function DiscoverStackNavigator() {
+  const stackScreenOptions = useStackScreenOptions();
+  return (
+    <DiscoverStack.Navigator screenOptions={stackScreenOptions}>
+      <DiscoverStack.Screen name="DiscoverHome" component={DiscoverHomeScreen} options={{ title: "Discover" }} />
+    </DiscoverStack.Navigator>
+  );
+}
+
 function ProfileStackNavigator() {
   const stackScreenOptions = useStackScreenOptions();
   return (
     <ProfileStack.Navigator screenOptions={stackScreenOptions}>
       <ProfileStack.Screen name="ProfileHome" component={ProfileScreen} options={{ title: "Profile" }} />
+      <ProfileStack.Screen name="BusinessProfile" component={BusinessProfileScreen} options={{ title: "Business" }} />
     </ProfileStack.Navigator>
   );
 }
@@ -112,6 +126,14 @@ export function MainTabsNavigator() {
         options={{
           title: "Capture",
           tabBarIcon: ({ color, size }) => <Ionicons name="add-circle-outline" color={color} size={size} />,
+        }}
+      />
+      <Tab.Screen
+        name="Discover"
+        component={DiscoverStackNavigator}
+        options={{
+          title: "Discover",
+          tabBarIcon: ({ color, size }) => <Ionicons name="compass-outline" color={color} size={size} />,
         }}
       />
       <Tab.Screen

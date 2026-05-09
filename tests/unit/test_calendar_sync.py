@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from eventflow.adapters.calendar_client import CalendarRef, CalendarUpsertResult
-from eventflow.adapters.repository import CalendarToken, FakeCalendarTokenRepository
+from eventflow.adapters.calendar_client import CalendarDeleteResult, CalendarRef, CalendarUpsertResult
+from eventflow.adapters.repository import CalendarToken, FakeCalendarTokenRepository, FakeEventRepository
 from eventflow.domain import events as domain_events
 from eventflow.domain.model import ScheduledEvent
 from eventflow.service_layer import handlers
@@ -14,6 +14,7 @@ from eventflow.service_layer.unit_of_work import FakeUnitOfWork
 class FakeCalendarClient:
     def __init__(self) -> None:
         self.calls: list[dict] = []
+        self.deletes: list[dict] = []
 
     def upsert_event(
         self,
@@ -41,6 +42,24 @@ class FakeCalendarClient:
             refresh_token="new-refresh",
             expiry=datetime.now(timezone.utc),
         )
+
+    def delete_event(
+        self,
+        *,
+        access_token: str,
+        refresh_token=None,
+        token_uri=None,
+        external_id: str,
+    ):
+        self.deletes.append(
+            {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_uri": token_uri,
+                "external_id": external_id,
+            }
+        )
+        return CalendarDeleteResult(access_token="del-access", refresh_token="del-refresh", expiry=None)
 
     def build_ics(self, *, event: ScheduledEvent) -> str:
         return "BEGIN:VCALENDAR"
@@ -100,4 +119,37 @@ def test_sync_to_calendar_with_token_upserts_and_sets_external_id():
     assert refreshed is not None
     assert refreshed.access_token == "new-access"
     assert refreshed.refresh_token == "new-refresh"
+
+
+def test_cancel_calendar_entry_deletes_external_and_clears_id():
+    user_id = uuid4()
+    event_id = uuid4()
+    evt = ScheduledEvent(id=event_id, user_id=user_id, title="T", start_time=datetime.now(timezone.utc), venue="V")
+    setattr(evt, "calendar_external_id", "ext-del")
+    uow = FakeUnitOfWork(
+        events=FakeEventRepository([evt]),
+        calendar_tokens=FakeCalendarTokenRepository(
+            [
+                CalendarToken(
+                    user_id=user_id,
+                    provider="google",
+                    access_token="a",
+                    refresh_token="r",
+                    token_uri="https://oauth2.googleapis.com/token",
+                    scopes=("https://www.googleapis.com/auth/calendar.events",),
+                    expiry=None,
+                )
+            ]
+        ),
+    )
+    fake = FakeCalendarClient()
+    handlers.calendar_client = fake
+    try:
+        handlers.cancel_calendar_entry(domain_events.EventCancelled(event_id=event_id), uow)
+    finally:
+        handlers.calendar_client = None
+
+    assert len(fake.deletes) == 1
+    assert fake.deletes[0]["external_id"] == "ext-del"
+    assert getattr(evt, "calendar_external_id") is None
 

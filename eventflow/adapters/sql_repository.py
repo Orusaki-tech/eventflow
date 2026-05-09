@@ -223,6 +223,9 @@ class SqlAlchemyCommunityEventRepository(AbstractCommunityEventRepository):
             "start_time": evt.start_time,
             "venue": evt.venue,
             "description": evt.description,
+            "poster_image_uri": getattr(evt, "poster_image_uri", None),
+            "sponsored_rank": getattr(evt, "sponsored_rank", 0),
+            "verified_badge": getattr(evt, "verified_badge", False),
             "created_at": evt.created_at or now,
         }
         stmt = (
@@ -234,6 +237,9 @@ class SqlAlchemyCommunityEventRepository(AbstractCommunityEventRepository):
                 start_time=values["start_time"],
                 venue=values["venue"],
                 description=values["description"],
+                poster_image_uri=values["poster_image_uri"],
+                sponsored_rank=values["sponsored_rank"],
+                verified_badge=values["verified_badge"],
             )
         )
         result = self.session.execute(stmt)
@@ -251,7 +257,10 @@ class SqlAlchemyCommunityEventRepository(AbstractCommunityEventRepository):
                 community_events.c.start_time,
                 community_events.c.venue,
                 community_events.c.description,
+                community_events.c.poster_image_uri,
                 community_events.c.created_at,
+                community_events.c.sponsored_rank,
+                community_events.c.verified_badge,
             ).where(community_events.c.id == community_event_id)
         ).first()
         if row is None:
@@ -264,6 +273,9 @@ class SqlAlchemyCommunityEventRepository(AbstractCommunityEventRepository):
             start_time=row.start_time,
             venue=row.venue,
             description=row.description,
+            poster_image_uri=row.poster_image_uri,
+            sponsored_rank=int(row.sponsored_rank),
+            verified_badge=bool(row.verified_badge),
             created_at=row.created_at,
         )
 

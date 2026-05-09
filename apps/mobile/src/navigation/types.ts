@@ -15,9 +15,15 @@ export type CaptureStackParamList = {
   CaptureHome: undefined;
 };
 
+/** Stack inside Discover tab */
+export type DiscoverStackParamList = {
+  DiscoverHome: undefined;
+};
+
 /** Stack inside Profile tab */
 export type ProfileStackParamList = {
   ProfileHome: undefined;
+  BusinessProfile: undefined;
 };
 
 /** Bottom tabs (each tab is a nested stack) */
@@ -25,6 +31,7 @@ export type MainTabParamList = {
   Inbox: NavigatorScreenParams<InboxStackParamList>;
   Calendar: NavigatorScreenParams<CalendarStackParamList>;
   Capture: NavigatorScreenParams<CaptureStackParamList>;
+  Discover: NavigatorScreenParams<DiscoverStackParamList>;
   Profile: NavigatorScreenParams<ProfileStackParamList>;
 };
 
@@ -52,4 +59,13 @@ export type RootStackParamList = {
     ownerUserId?: string;
   };
   ManualVenue: { eventId: string; venueHint?: string | null };
+  CommunityListingDetail: {
+    communityEventId: string;
+    organizerUserId: string | null;
+    title: string;
+    start_time: string;
+    venue: string;
+    whatsapp_e164?: string | null;
+    business_id?: string | null;
+  };
 };

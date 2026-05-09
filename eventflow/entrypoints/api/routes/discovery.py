@@ -1,15 +1,37 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import text
 
 from eventflow.adapters.embeddings_client import DeterministicEmbeddingsClient
+from eventflow.adapters.share_parse_cache import normalize_shared_url
 from eventflow.domain import commands
-from eventflow.entrypoints.api.schemas import CommunityEventResponse, CommunityEventUpsertRequest
+from eventflow.entrypoints.api.schemas import (
+    CommunityEventResponse,
+    CommunityEventUpsertRequest,
+    SharedLinkListingStatusResponse,
+)
 from eventflow.entrypoints.dependencies import get_current_user_id, get_session, get_uow
 from eventflow.service_layer import messagebus, views
 
 
 router = APIRouter(tags=["Discovery"])
+
+
+@router.get(
+    "/discovery/shared-link-listing",
+    status_code=status.HTTP_200_OK,
+    response_model=SharedLinkListingStatusResponse,
+)
+async def shared_link_listing_status(url: str = Query(min_length=8), session=Depends(get_session)):
+    if session is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    norm = normalize_shared_url(url)
+    row = session.execute(
+        text("SELECT status FROM shared_link_listings WHERE normalized_url = :u LIMIT 1"),
+        {"u": norm},
+    ).first()
+    return SharedLinkListingStatusResponse(normalized_url=norm, status=None if row is None else str(row[0]))
 
 
 def _vector_literal(vec: list[float]) -> str:
@@ -54,6 +76,7 @@ async def upsert_community_event(
             start_time=body.start_time,
             venue=body.venue,
             description=body.description,
+            poster_image_uri=(body.poster_image_uri.strip() if body.poster_image_uri else None),
         ),
         uow,
     )

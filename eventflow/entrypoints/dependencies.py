@@ -5,7 +5,7 @@ from functools import lru_cache
 from typing import Iterator
 from uuid import UUID, uuid4
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -106,6 +106,18 @@ def get_current_user_id(
         )
 
 
+def require_admin_api_token(x_admin_token: str | None = Header(None, alias="X-Admin-Token")) -> None:
+    settings = get_settings()
+    expected = (settings.admin_api_token or "").strip()
+    if not expected:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Admin API token not configured (set ADMIN_API_TOKEN)",
+        )
+    if not x_admin_token or x_admin_token.strip() != expected:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+
 def get_gemini_client() -> AbstractGeminiClient:
     settings = get_settings()
     if settings.gemini_api_key:
@@ -126,6 +138,14 @@ def get_calendar_client() -> AbstractCalendarClient:
     if settings.google_calendar_credentials_json:
         return GoogleCalendarClient(credentials_json=settings.google_calendar_credentials_json)
     return NoOpCalendarClient()
+
+
+@lru_cache
+def get_write_scheduler_client():
+    """Paused APScheduler client writing jobs to the shared SQL jobstore (scheduler worker executes)."""
+    from eventflow.workers.scheduler import build_scheduler_client
+
+    return build_scheduler_client()
 
 
 def get_push_client() -> AbstractPushClient:

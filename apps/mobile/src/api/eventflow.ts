@@ -93,6 +93,61 @@ export type Venue = {
   place_id?: string | null;
 };
 
+/** `GET /feed/home` row (`community_events` with `id` as UUID string). */
+export type FeedHomeRow = {
+  id: string;
+  title: string;
+  start_time: string;
+  venue: string;
+  user_id: string;
+  sponsored_rank?: number | null;
+  poster_image_uri?: string | null;
+  business_id?: string | null;
+  whatsapp_e164?: string | null;
+  hero_video_uri?: string | null;
+};
+
+/** `GET /discovery/feed` row. */
+export type DiscoveryCommunityRow = {
+  community_event_id: string;
+  source?: string | null;
+  title: string;
+  start_time: string;
+  venue: string;
+  description?: string | null;
+  poster_image_uri?: string | null;
+  business_id?: string | null;
+  whatsapp_e164?: string | null;
+  hero_video_uri?: string | null;
+};
+
+export type CarouselSlide = {
+  kind: "poster" | "video";
+  title?: string | null;
+  subtitle?: string | null;
+  uri?: string | null;
+  image_uri?: string | null;
+};
+
+export type ListingCarouselResponse = {
+  community_event_id: string;
+  slides: CarouselSlide[];
+};
+
+export type ListingAnalyticsMetric = "impression" | "save" | "whatsapp_tap";
+
+export type BusinessResponse = {
+  business_id: string;
+  name: string;
+  whatsapp_e164: string | null;
+  verified: boolean;
+};
+
+export type BillingCheckoutStubResponse = {
+  checkout_url: string;
+  provider: "stripe" | "mpesa_stub";
+};
+
 async function readProblemDetail(res: Response): Promise<string> {
   const ct = res.headers.get("content-type") ?? "";
   if (ct.includes("json")) {
@@ -567,6 +622,48 @@ export async function cancelEvent(baseUrl: string, token: string | null, eventId
   });
 }
 
+export async function getDeviceCalendarLink(
+  baseUrl: string,
+  token: string | null,
+  eventId: string
+): Promise<{ external_event_id: string; calendar_id: string | null }> {
+  return request(baseUrl, `/api/v1/events/${eventId}/device-calendar`, token, { method: "GET" });
+}
+
+export async function putDeviceCalendarLink(
+  baseUrl: string,
+  token: string | null,
+  eventId: string,
+  body: { external_event_id: string; calendar_id?: string | null }
+): Promise<{ ok: boolean }> {
+  return request(baseUrl, `/api/v1/events/${eventId}/device-calendar`, token, {
+    method: "PUT",
+    json: body,
+  });
+}
+
+export async function deleteDeviceCalendarLink(
+  baseUrl: string,
+  token: string | null,
+  eventId: string
+): Promise<void> {
+  await request<void>(baseUrl, `/api/v1/events/${eventId}/device-calendar`, token, {
+    method: "DELETE",
+  });
+}
+
+export async function postSnoozeLeaveAlert(
+  baseUrl: string,
+  token: string | null,
+  eventId: string,
+  minutes: number = 10
+): Promise<{ status: string; fire_at: string }> {
+  return request(baseUrl, `/api/v1/events/${eventId}/alerts/snooze`, token, {
+    method: "POST",
+    json: { minutes },
+  });
+}
+
 export async function patchEventPrice(
   baseUrl: string,
   token: string | null,
@@ -624,4 +721,109 @@ export async function registerExpoPushToken(
       platform,
     },
   });
+}
+
+export async function getFeedHome(
+  baseUrl: string,
+  token: string | null,
+  args?: { limit?: number }
+): Promise<FeedHomeRow[]> {
+  const lim = args?.limit ?? 50;
+  return request<FeedHomeRow[]>(baseUrl, `/api/v1/feed/home?limit=${encodeURIComponent(String(lim))}`, token, {
+    method: "GET",
+  });
+}
+
+export async function getDiscoveryFeed(
+  baseUrl: string,
+  token: string | null,
+  args?: { limit?: number }
+): Promise<DiscoveryCommunityRow[]> {
+  const lim = args?.limit ?? 50;
+  return request<DiscoveryCommunityRow[]>(
+    baseUrl,
+    `/api/v1/discovery/feed?limit=${encodeURIComponent(String(lim))}`,
+    token,
+    { method: "GET" }
+  );
+}
+
+export async function getListingCarousel(
+  baseUrl: string,
+  token: string | null,
+  communityEventId: string
+): Promise<ListingCarouselResponse> {
+  return request<ListingCarouselResponse>(
+    baseUrl,
+    `/api/v1/listings/${encodeURIComponent(communityEventId)}/carousel`,
+    token,
+    { method: "GET" }
+  );
+}
+
+export async function postFollowUser(
+  baseUrl: string,
+  token: string | null,
+  targetUserId: string
+): Promise<{ ok: boolean }> {
+  return request(baseUrl, `/api/v1/follows/${encodeURIComponent(targetUserId)}`, token, { method: "POST" });
+}
+
+export async function deleteFollowUser(
+  baseUrl: string,
+  token: string | null,
+  targetUserId: string
+): Promise<void> {
+  await request<void>(baseUrl, `/api/v1/follows/${encodeURIComponent(targetUserId)}`, token, { method: "DELETE" });
+}
+
+export async function postListingAnalytics(
+  baseUrl: string,
+  token: string | null,
+  body: {
+    metric_type: ListingAnalyticsMetric;
+    community_event_id?: string | null;
+    business_id?: string | null;
+    meta?: Record<string, unknown> | null;
+  }
+): Promise<void> {
+  await request<void>(baseUrl, "/api/v1/listing-analytics", token, {
+    method: "POST",
+    json: body,
+  });
+}
+
+export async function postBusiness(
+  baseUrl: string,
+  token: string | null,
+  body: { name: string; whatsapp_e164?: string | null }
+): Promise<BusinessResponse> {
+  return request<BusinessResponse>(baseUrl, "/api/v1/businesses", token, {
+    method: "POST",
+    json: { name: body.name.trim(), whatsapp_e164: body.whatsapp_e164?.trim() || null },
+  });
+}
+
+export async function getBusiness(
+  baseUrl: string,
+  token: string | null,
+  businessId: string
+): Promise<BusinessResponse> {
+  return request<BusinessResponse>(baseUrl, `/api/v1/businesses/${encodeURIComponent(businessId)}`, token, {
+    method: "GET",
+  });
+}
+
+export async function postBillingCheckoutStub(
+  baseUrl: string,
+  token: string | null,
+  provider: "stripe" | "mpesa_stub" = "stripe"
+): Promise<BillingCheckoutStubResponse> {
+  const q = encodeURIComponent(provider);
+  return request<BillingCheckoutStubResponse>(
+    baseUrl,
+    `/api/v1/billing/checkout-session?provider=${q}`,
+    token,
+    { method: "POST" }
+  );
 }
