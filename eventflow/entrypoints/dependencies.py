@@ -7,7 +7,8 @@ from uuid import UUID, uuid4
 
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.orm import sessionmaker
 
 from eventflow.config import get_settings
@@ -111,16 +112,33 @@ def _parse_admin_user_ids_csv() -> set[str]:
     return {s.strip() for s in csv.split(",") if s.strip()}
 
 
-def is_admin_user(user_id: UUID) -> bool:
-    """True when ``user_id`` is listed in ``ADMIN_USER_IDS`` (comma-separated Supabase auth UUIDs)."""
-    return str(user_id) in _parse_admin_user_ids_csv()
+def _admin_in_allowlist_table(session: object, user_id: UUID) -> bool:
+    """True when ``admin_console_allowlist`` contains ``user_id``. Missing table → False (run migrations)."""
+    try:
+        row = session.execute(
+            text("SELECT 1 FROM admin_console_allowlist WHERE user_id = :u LIMIT 1"),
+            {"u": user_id},
+        ).first()
+        return row is not None
+    except ProgrammingError:
+        return False
 
 
-def require_admin_user(user_id: UUID = Depends(get_current_user_id)) -> UUID:
-    """JWT route dependency: same bearer verification as ``get_current_user_id``, plus membership in ``ADMIN_USER_IDS``."""
-    if not is_admin_user(user_id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
-    return user_id
+def is_admin_user(user_id: UUID, session: object | None = None) -> bool:
+    """
+    Operator access for JWT routes.
+
+    True when ``user_id`` is in env ``ADMIN_USER_IDS`` **or** (when ``session`` is a DB session) present in
+    ``admin_console_allowlist``. Use the table for routine adds/removals without redeploys; env CSV is optional
+    bootstrap.
+
+    Regular platform users are never listed — only trusted operators (~small cardinality).
+    """
+    if str(user_id) in _parse_admin_user_ids_csv():
+        return True
+    if session is None:
+        return False
+    return _admin_in_allowlist_table(session, user_id)
 
 
 def require_admin_api_token(x_admin_token: str | None = Header(None, alias="X-Admin-Token")) -> None:
@@ -261,3 +279,12 @@ def get_session() -> Iterator[object]:
     finally:
         session.close()
 
+
+def require_admin_user(
+    user_id: UUID = Depends(get_current_user_id),
+    session=Depends(get_session),
+) -> UUID:
+    """JWT dependency: bearer user must match ``ADMIN_USER_IDS`` or row in ``admin_console_allowlist``."""
+    if not is_admin_user(user_id, session=session):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    return user_id
