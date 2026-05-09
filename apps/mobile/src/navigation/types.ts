@@ -68,4 +68,5 @@ export type RootStackParamList = {
     whatsapp_e164?: string | null;
     business_id?: string | null;
   };
+  SocialHub: undefined;
 };

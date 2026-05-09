@@ -59,7 +59,12 @@ async def list_groups(
     rows = session.execute(
         text(
             """
-            SELECT g.id as group_id, g.name, g.owner_user_id
+            SELECT g.id AS group_id,
+                   g.name,
+                   g.owner_user_id,
+                   g.invite_token,
+                   g.group_type,
+                   gm.role AS my_role
             FROM groups g
             JOIN group_memberships gm ON gm.group_id = g.id
             WHERE gm.user_id = :user_id

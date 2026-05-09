@@ -50,9 +50,7 @@ export function HomeScreen({ navigation }: Props) {
           EventFlow
         </AppText>
       ),
-      headerRight: () => (
-        <ProfileIconButton onPress={() => navigation.getParent()?.navigate("Profile")} />
-      ),
+      headerRight: () => <ProfileIconButton onPress={() => navigationRef.navigate("SocialHub")} />,
     });
   }, [navigation, styles.headerTitle]);
 

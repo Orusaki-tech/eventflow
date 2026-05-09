@@ -148,6 +148,22 @@ export type BillingCheckoutStubResponse = {
   provider: "stripe" | "mpesa_stub";
 };
 
+/** GET /groups row */
+export type GroupRow = {
+  group_id: string;
+  name: string;
+  owner_user_id: string;
+  invite_token?: string | null;
+  group_type?: string | null;
+  my_role?: "owner" | "member" | null;
+};
+
+/** GET /follows row */
+export type FollowingRow = {
+  following_user_id: string;
+  created_at: string;
+};
+
 async function readProblemDetail(res: Response): Promise<string> {
   const ct = res.headers.get("content-type") ?? "";
   if (ct.includes("json")) {
@@ -759,6 +775,36 @@ export async function getListingCarousel(
     token,
     { method: "GET" }
   );
+}
+
+export async function listGroups(baseUrl: string, token: string | null): Promise<GroupRow[]> {
+  return request<GroupRow[]>(baseUrl, "/api/v1/groups", token, { method: "GET" });
+}
+
+export async function listFollowing(baseUrl: string, token: string | null): Promise<FollowingRow[]> {
+  return request<FollowingRow[]>(baseUrl, "/api/v1/follows", token, { method: "GET" });
+}
+
+export async function postCreateGroup(
+  baseUrl: string,
+  token: string | null,
+  body: { name: string }
+): Promise<GroupRow> {
+  return request<GroupRow>(baseUrl, "/api/v1/groups", token, {
+    method: "POST",
+    json: { name: body.name.trim() },
+  });
+}
+
+export async function postJoinGroupByToken(
+  baseUrl: string,
+  token: string | null,
+  inviteToken: string
+): Promise<{ ok: boolean; group_id: string }> {
+  return request<{ ok: boolean; group_id: string }>(baseUrl, "/api/v1/groups/join-by-token", token, {
+    method: "POST",
+    json: { invite_token: inviteToken.trim() },
+  });
 }
 
 export async function postFollowUser(

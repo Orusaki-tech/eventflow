@@ -308,6 +308,13 @@ class GroupResponse(BaseModel):
     owner_user_id: UUID
     invite_token: str | None = None
     group_type: str | None = None
+    """Membership role for the requesting user when listing ``GET /groups``."""
+    my_role: Literal["owner", "member"] | None = None
+
+
+class FollowingRow(BaseModel):
+    following_user_id: UUID
+    created_at: datetime
 
 
 class GroupMemberAddRequest(BaseModel):

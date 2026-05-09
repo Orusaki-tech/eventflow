@@ -17,6 +17,7 @@ import { OnboardingScreen } from "../screens/OnboardingScreen";
 import { PosterImportScreen } from "../screens/PosterImportScreen";
 import { SharedMediaImportScreen } from "../screens/SharedMediaImportScreen";
 import { ProcessingScreen } from "../screens/ProcessingScreen";
+import { SocialHubScreen } from "../screens/SocialHubScreen";
 import { STORAGE_ONBOARDING_DONE } from "../lib/constants";
 import { useTheme } from "../design/theme";
 import { navigationRef } from "./navigationRef";
@@ -130,6 +131,14 @@ export function RootNavigator() {
           name="CommunityListingDetail"
           component={CommunityListingDetailScreen}
           options={{ title: "Listing" }}
+        />
+        <Stack.Screen
+          name="SocialHub"
+          component={SocialHubScreen}
+          options={{
+            headerShown: false,
+            presentation: "modal",
+          }}
         />
       </Stack.Navigator>
     </NavigationContainer>

@@ -53,9 +53,7 @@ export function CaptureScreen({ navigation }: Props) {
 
   React.useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: () => (
-        <ProfileIconButton onPress={() => navigation.getParent()?.navigate("Profile")} />
-      ),
+      headerRight: () => <ProfileIconButton onPress={() => navigationRef.navigate("SocialHub")} />,
     });
   }, [navigation]);
 

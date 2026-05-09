@@ -55,9 +55,7 @@ export function CalendarScreen({ navigation }: Props) {
 
   React.useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: () => (
-        <ProfileIconButton onPress={() => navigation.getParent()?.navigate("Profile")} />
-      ),
+      headerRight: () => <ProfileIconButton onPress={() => navigationRef.navigate("SocialHub")} />,
     });
   }, [navigation]);
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { Alert, Pressable, StyleSheet } from "react-native";
+import { Pressable, StyleSheet } from "react-native";
 import { AppText } from "./AppText";
 import { pressedOpacityStyle, tokens } from "../tokens";
 import { useTheme } from "../theme";
@@ -9,8 +9,7 @@ type Props = {
   accessibilityLabel?: string;
 };
 
-export function ProfileIconButton({ onPress, accessibilityLabel = "Profile" }: Props) {
-  const { mode, toggle } = useTheme();
+export function ProfileIconButton({ onPress, accessibilityLabel = "Open connections" }: Props) {
   const { colors } = useTheme();
   return (
     <Pressable
@@ -21,13 +20,7 @@ export function ProfileIconButton({ onPress, accessibilityLabel = "Profile" }: P
         { borderColor: colors.border, backgroundColor: colors.surface1 },
         pressedOpacityStyle(pressed),
       ]}
-      onPress={() => {
-        Alert.alert("Quick actions", undefined, [
-          { text: `Switch to ${mode === "dark" ? "Light" : "Dark"} theme`, onPress: () => toggle() },
-          { text: "Open profile", onPress },
-          { text: "Cancel", style: "cancel" },
-        ]);
-      }}
+      onPress={onPress}
     >
       <AppText variant="labelSmall" style={styles.label}>
         ME

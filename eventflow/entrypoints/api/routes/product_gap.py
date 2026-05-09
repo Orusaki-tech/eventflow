@@ -21,6 +21,7 @@ from eventflow.entrypoints.api.schemas import (
     BusinessResponse,
     CarouselSlide,
     EventVideoModerationPatchRequest,
+    FollowingRow,
     ListingAnalyticsRequest,
     ListingBusinessAttachRequest,
     ListingCarouselResponse,
@@ -320,6 +321,27 @@ async def listing_analytics(
     )
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/follows", status_code=status.HTTP_200_OK, response_model=list[FollowingRow])
+async def list_follows(
+    user_id=Depends(get_current_user_id),
+    session=Depends(get_session),
+):
+    if session is None:
+        return []
+    rows = session.execute(
+        text(
+            """
+            SELECT following_user_id, created_at
+            FROM follows
+            WHERE follower_user_id = :uid
+            ORDER BY created_at DESC
+            """
+        ),
+        {"uid": str(user_id)},
+    )
+    return [FollowingRow(following_user_id=r[0], created_at=r[1]) for r in rows]
 
 
 @router.post("/follows/{target_user_id}", status_code=status.HTTP_201_CREATED)
