@@ -29,6 +29,9 @@ function formatBreadcrumb(pathname: string): { muted: string; rest: string } {
 }
 
 function apiPillText(): string {
+  if (process.env.NEXT_PUBLIC_EVENTFLOW_API_PROXY === "1") {
+    return "proxy → upstream";
+  }
   const raw = process.env.NEXT_PUBLIC_EVENTFLOW_API_URL ?? "http://localhost:8000";
   try {
     const u = new URL(raw);
@@ -161,7 +164,14 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
             <div className="portal-topbar-title">
               <span className="portal-topbar-title-muted">{crumb.muted}</span>/ {crumb.rest}
             </div>
-            <div className="portal-topbar-pill" title={process.env.NEXT_PUBLIC_EVENTFLOW_API_URL ?? ""}>
+            <div
+              className="portal-topbar-pill"
+              title={
+                process.env.NEXT_PUBLIC_EVENTFLOW_API_PROXY === "1"
+                  ? "Requests use /api/eventflow proxy (see EVENTFLOW_UPSTREAM_URL on server)"
+                  : (process.env.NEXT_PUBLIC_EVENTFLOW_API_URL ?? "")
+              }
+            >
               <b>API</b> {apiPillText()}
             </div>
             <button type="button" className="portal-icon-btn" title="Notifications (coming soon)" aria-label="Notifications (coming soon)">

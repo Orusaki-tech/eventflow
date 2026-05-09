@@ -1,4 +1,17 @@
-const apiBase = () => process.env.NEXT_PUBLIC_EVENTFLOW_API_URL ?? "http://localhost:8000";
+/** Browser-safe API origin: direct URL, or same-origin proxy when NEXT_PUBLIC_EVENTFLOW_API_PROXY=1 (HTTPS sites → HTTP VM). */
+function apiOrigin(): string {
+  if (process.env.NEXT_PUBLIC_EVENTFLOW_API_PROXY === "1") {
+    return "";
+  }
+  return process.env.NEXT_PUBLIC_EVENTFLOW_API_URL ?? "http://localhost:8000";
+}
+
+function apiPathPrefix(): string {
+  if (process.env.NEXT_PUBLIC_EVENTFLOW_API_PROXY === "1") {
+    return "/api/eventflow";
+  }
+  return "";
+}
 
 export async function efFetch<T>(
   path: string,
@@ -15,7 +28,8 @@ export async function efFetch<T>(
     headers["Content-Type"] = "application/json";
     body = JSON.stringify(init.json);
   }
-  const res = await fetch(`${apiBase()}${path}`, { ...init, headers, body });
+  const url = `${apiOrigin()}${apiPathPrefix()}${path}`;
+  const res = await fetch(url, { ...init, headers, body });
   if (!res.ok) {
     let detail = res.statusText;
     try {
