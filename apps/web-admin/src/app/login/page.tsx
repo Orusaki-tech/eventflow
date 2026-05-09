@@ -38,8 +38,9 @@ export default function LoginPage() {
       <div className="card">
         <h1 style={{ marginTop: 0 }}>Admin sign in</h1>
         <p style={{ color: "var(--muted)" }}>
-          Uses Supabase session JWTs. Your user id must be listed in{" "}
-          <code style={{ color: "inherit" }}>ADMIN_USER_IDS</code> on the API.
+          Uses Supabase session JWTs. The API must list your JWT email in{" "}
+          <code style={{ color: "inherit" }}>ADMIN_OPERATOR_EMAILS</code>, or your Supabase user id in{" "}
+          <code style={{ color: "inherit" }}>ADMIN_USER_IDS</code> when the email allowlist is unset.
         </p>
         {!supabaseEnvReady ? (
           <p className="error" style={{ marginBottom: "1rem" }}>

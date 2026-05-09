@@ -123,8 +123,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <h1 style={{ marginTop: 0 }}>Not an admin</h1>
           <p style={{ color: "var(--muted)" }}>
             You are signed in as <strong>{emailHint ?? "—"}</strong>, but this JWT is not authorized for the admin API.
-            Ask an operator to add your Supabase auth user id to <code style={{ color: "inherit" }}>ADMIN_USER_IDS</code>{" "}
-            on the EventFlow API, then refresh.
+            Ask an operator to add your email to <code style={{ color: "inherit" }}>ADMIN_OPERATOR_EMAILS</code> or your
+            Supabase auth user id to <code style={{ color: "inherit" }}>ADMIN_USER_IDS</code> on the EventFlow API (when{" "}
+            <code style={{ color: "inherit" }}>ADMIN_OPERATOR_EMAILS</code> is unset), then refresh.
           </p>
           <button type="button" onClick={() => void onSignOut()}>
             Sign out
