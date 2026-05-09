@@ -11,6 +11,7 @@ from sqlalchemy import text
 from starlette.responses import Response
 
 from eventflow.adapters.share_parse_cache import normalize_shared_url
+from eventflow.entrypoints.api.business_verified_updates import set_business_verified
 from eventflow.entrypoints.api.routes.share import upsert_shared_link_listing_approved
 from eventflow.entrypoints.api.schemas import (
     AdminBusinessVerifiedPatchRequest,
@@ -157,18 +158,7 @@ async def admin_patch_business_verified(
 ):
     if session is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
-    session.execute(
-        text("UPDATE businesses SET verified = :v WHERE id = :id"),
-        {"v": body.verified, "id": str(business_id)},
-    )
-    session.commit()
-    row = session.execute(
-        text("SELECT id, name, whatsapp_e164, verified FROM businesses WHERE id = :id LIMIT 1"),
-        {"id": str(business_id)},
-    ).first()
-    if row is None:
-        raise HTTPException(status_code=404, detail="Business not found")
-    return BusinessResponse(business_id=row[0], name=row[1], whatsapp_e164=row[2], verified=bool(row[3]))
+    return set_business_verified(session, business_id=business_id, verified=body.verified)
 
 
 @router.get("/businesses/{business_id}", status_code=status.HTTP_200_OK, response_model=BusinessResponse)

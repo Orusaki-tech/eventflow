@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useAdminAuth } from "@/components/admin/admin-auth-context";
-import { listAdminBusinesses, type AdminBusinessRow } from "@/lib/eventflow-api";
+import { listAdminBusinesses, patchAdminBusinessVerified, type AdminBusinessRow } from "@/lib/eventflow-api";
 
 const LIMIT = 25;
 
@@ -19,6 +19,8 @@ export default function AdminBusinessesPage() {
   const [rows, setRows] = useState<AdminBusinessRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [actionErr, setActionErr] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [searchDraft, setSearchDraft] = useState(q);
 
   useEffect(() => {
@@ -88,6 +90,7 @@ export default function AdminBusinessesPage() {
         </form>
 
         {loadErr ? <p className="portal-error">{loadErr}</p> : null}
+        {actionErr ? <p className="portal-error">{actionErr}</p> : null}
 
         <div style={{ overflowX: "auto" }}>
           <table className="portal-table">
@@ -97,6 +100,7 @@ export default function AdminBusinessesPage() {
                 <th>Owner</th>
                 <th>Verified</th>
                 <th>WhatsApp</th>
+                <th>Verification</th>
               </tr>
             </thead>
             <tbody>
@@ -106,6 +110,57 @@ export default function AdminBusinessesPage() {
                   <td style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{r.owner_user_id}</td>
                   <td>{r.verified ? "yes" : "no"}</td>
                   <td style={{ color: "var(--portal-muted)" }}>{r.whatsapp_e164 ?? "—"}</td>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    <button
+                      type="button"
+                      className="portal-act"
+                      disabled={busyId === r.business_id || r.verified}
+                      title="Mark business verified"
+                      onClick={() => {
+                        setActionErr(null);
+                        setBusyId(r.business_id);
+                        void patchAdminBusinessVerified(token, r.business_id, { verified: true })
+                          .then((out) => {
+                            setRows((prev) =>
+                              prev.map((row) =>
+                                row.business_id === out.business_id ? { ...row, verified: out.verified, name: out.name } : row
+                              )
+                            );
+                          })
+                          .catch((e: unknown) => {
+                            setActionErr(e instanceof Error ? e.message : String(e));
+                          })
+                          .finally(() => setBusyId(null));
+                      }}
+                    >
+                      Verify
+                    </button>
+                    <button
+                      type="button"
+                      className="portal-act"
+                      style={{ marginLeft: 6 }}
+                      disabled={busyId === r.business_id || !r.verified}
+                      title="Remove verified flag"
+                      onClick={() => {
+                        setActionErr(null);
+                        setBusyId(r.business_id);
+                        void patchAdminBusinessVerified(token, r.business_id, { verified: false })
+                          .then((out) => {
+                            setRows((prev) =>
+                              prev.map((row) =>
+                                row.business_id === out.business_id ? { ...row, verified: out.verified, name: out.name } : row
+                              )
+                            );
+                          })
+                          .catch((e: unknown) => {
+                            setActionErr(e instanceof Error ? e.message : String(e));
+                          })
+                          .finally(() => setBusyId(null));
+                      }}
+                    >
+                      Revoke
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

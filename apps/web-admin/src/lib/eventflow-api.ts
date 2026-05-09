@@ -92,6 +92,24 @@ export async function listAdminBusinesses(
   return efFetch(`/api/v1/admin/console/businesses${qs ? `?${qs}` : ""}`, token, { method: "GET" });
 }
 
+export type BusinessVerifiedRow = {
+  business_id: string;
+  name: string;
+  whatsapp_e164: string | null;
+  verified: boolean;
+};
+
+export async function patchAdminBusinessVerified(
+  token: string,
+  businessId: string,
+  body: { verified: boolean }
+): Promise<BusinessVerifiedRow> {
+  return efFetch(`/api/v1/admin/console/businesses/${encodeURIComponent(businessId)}/verified`, token, {
+    method: "PATCH",
+    json: body,
+  });
+}
+
 export type AdminCommunityEventRow = {
   community_event_id: string;
   user_id: string;

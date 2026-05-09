@@ -1,4 +1,4 @@
-"""Read-only admin directory API (Bearer JWT + ``ADMIN_USER_IDS``)."""
+"""Admin console API (Bearer JWT + allowlist): directory reads and business verification writes."""
 
 from __future__ import annotations
 
@@ -7,7 +7,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 
+from eventflow.entrypoints.api.business_verified_updates import set_business_verified
 from eventflow.entrypoints.api.schemas import (
+    AdminBusinessVerifiedPatchRequest,
     AdminConsoleBusinessListResponse,
     AdminConsoleBusinessRow,
     AdminConsoleCommunityEventListResponse,
@@ -16,6 +18,7 @@ from eventflow.entrypoints.api.schemas import (
     AdminConsolePosterAssetListResponse,
     AdminConsolePosterAssetRow,
     AdminConsoleSummaryResponse,
+    BusinessResponse,
 )
 from eventflow.entrypoints.dependencies import get_session, require_admin_user
 
@@ -213,3 +216,19 @@ async def admin_console_poster_assets(
         for r in rows
     ]
     return AdminConsolePosterAssetListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.patch(
+    "/businesses/{business_id}/verified",
+    status_code=status.HTTP_200_OK,
+    response_model=BusinessResponse,
+)
+async def admin_console_patch_business_verified(
+    business_id: UUID,
+    body: AdminBusinessVerifiedPatchRequest,
+    _admin: UUID = Depends(require_admin_user),
+    session=Depends(get_session),
+):
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
+    return set_business_verified(session, business_id=business_id, verified=body.verified)
