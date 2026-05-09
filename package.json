@@ -1,0 +1,13 @@
+{
+  "name": "eventflow-monorepo",
+  "private": true,
+  "scripts": {
+    "build": "cd apps/web-business && npm ci && npm run build",
+    "lint": "cd apps/web-business && npm run lint"
+  },
+  "dependencies": {
+    "next": "14.2.18",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}

@@ -14,3 +14,6 @@ venv.*/
 .idea/
 *.swp
 .DS_Store
+
+# Root npm (Vercel / tooling); app deps live under apps/*/node_modules
+/node_modules
