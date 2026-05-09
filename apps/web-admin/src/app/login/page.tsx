@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 
-const supabaseEnvReady =
+const authConfigured =
   Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()) &&
   Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim());
 
@@ -34,23 +34,20 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="marketing-wrap">
-      <div className="card">
-        <h1 style={{ marginTop: 0 }}>Admin sign in</h1>
-        <p style={{ color: "var(--muted)" }}>
-          Uses Supabase session JWTs. The API must list your JWT email in{" "}
-          <code style={{ color: "inherit" }}>ADMIN_OPERATOR_EMAILS</code>, or your Supabase user id in{" "}
-          <code style={{ color: "inherit" }}>ADMIN_USER_IDS</code> when the email allowlist is unset.
+    <div className="auth-shell">
+      <div className="auth-card">
+        <p className="auth-brand">EventFlow</p>
+        <h1 className="auth-title">Admin sign in</h1>
+        <p className="auth-lede">
+          Enter the operator email and password you were given. If you cannot access the console after signing in, contact
+          whoever manages EventFlow for your organization.
         </p>
-        {!supabaseEnvReady ? (
+        {!authConfigured ? (
           <p className="error" style={{ marginBottom: "1rem" }}>
-            Supabase env is not configured. Add{" "}
-            <code style={{ color: "inherit" }}>NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
-            <code style={{ color: "inherit" }}>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>. See{" "}
-            <code style={{ color: "inherit" }}>apps/web-admin/.env.example</code>.
+            Sign-in is not enabled on this deployment yet. Whoever hosts this app still needs to finish the hosting setup.
           </p>
         ) : null}
-        <form onSubmit={(e) => void onSubmit(e)}>
+        <form className="auth-form" onSubmit={(e) => void onSubmit(e)}>
           <label>
             Email
             <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
@@ -66,14 +63,15 @@ export default function LoginPage() {
             />
           </label>
           {error ? <p className="error">{error}</p> : null}
-          <div style={{ marginTop: "1rem", display: "flex", gap: "0.75rem", alignItems: "center" }}>
-            <button type="submit" disabled={busy || !supabaseEnvReady}>
+          <div className="auth-actions">
+            <button type="submit" className="auth-submit" disabled={busy || !authConfigured}>
               {busy ? "Signing in…" : "Sign in"}
             </button>
           </div>
         </form>
-        <p style={{ marginTop: "1rem", fontSize: 12, color: "var(--muted)" }}>
-          <Link href="/">Dashboard</Link> (requires session)
+        <p className="auth-footer">
+          <Link href="/">Open the console</Link>
+          <span style={{ opacity: 0.85 }}> — you must be signed in.</span>
         </p>
       </div>
     </div>

@@ -122,10 +122,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <div className="card">
           <h1 style={{ marginTop: 0 }}>Not an admin</h1>
           <p style={{ color: "var(--muted)" }}>
-            You are signed in as <strong>{emailHint ?? "—"}</strong>, but this JWT is not authorized for the admin API.
-            Ask an operator to add your email to <code style={{ color: "inherit" }}>ADMIN_OPERATOR_EMAILS</code> or your
-            Supabase auth user id to <code style={{ color: "inherit" }}>ADMIN_USER_IDS</code> on the EventFlow API (when{" "}
-            <code style={{ color: "inherit" }}>ADMIN_OPERATOR_EMAILS</code> is unset), then refresh.
+            You are signed in as <strong>{emailHint ?? "—"}</strong>, but this account is not allowed to use the admin
+            console. Ask whoever runs EventFlow for your organization to grant operator access for your email, then refresh
+            this page.
           </p>
           <button type="button" onClick={() => void onSignOut()}>
             Sign out
@@ -206,7 +205,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               className="portal-topbar-pill"
               title={
                 process.env.NEXT_PUBLIC_EVENTFLOW_API_PROXY === "1"
-                  ? "Requests use /api/eventflow proxy (EVENTFLOW_UPSTREAM_URL on server)"
+                  ? "API requests go through this site’s proxy"
                   : (process.env.NEXT_PUBLIC_EVENTFLOW_API_URL ?? "")
               }
             >

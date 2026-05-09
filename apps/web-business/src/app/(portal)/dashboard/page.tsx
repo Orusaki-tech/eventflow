@@ -40,8 +40,8 @@ export default function DashboardOverviewPage() {
         </div>
         <div className="portal-card-bd">
           <p style={{ margin: "0 0 14px", fontSize: 12, color: "var(--portal-muted)" }}>
-            Manage discovery listings, organizer businesses, and billing from the sidebar. Use the same Supabase account as
-            EventFlow mobile.
+            Manage discovery listings, organizer businesses, and billing from the sidebar. Your session matches the account on
+            your phone.
           </p>
           {loadErr ? <p className="portal-error">{loadErr}</p> : null}
           <div className="portal-grid2">

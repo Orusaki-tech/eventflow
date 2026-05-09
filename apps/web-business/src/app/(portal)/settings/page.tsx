@@ -8,7 +8,7 @@ export default function SettingsPage() {
   const router = useRouter();
   const proxied = process.env.NEXT_PUBLIC_EVENTFLOW_API_PROXY === "1";
   const apiUrl = proxied
-    ? "(same-origin /api/eventflow/* → EVENTFLOW_UPSTREAM_URL on server)"
+    ? "Same origin — requests use this site’s API proxy"
     : (process.env.NEXT_PUBLIC_EVENTFLOW_API_URL ?? "http://localhost:8000");
 
   const signOut = async () => {
@@ -28,18 +28,17 @@ export default function SettingsPage() {
         </div>
         <div className="portal-card-bd">
           <div className="portal-field">
-            <div className="portal-lbl">{proxied ? "API routing" : "NEXT_PUBLIC_EVENTFLOW_API_URL"}</div>
+            <div className="portal-lbl">{proxied ? "API routing" : "API base URL"}</div>
             <input className="portal-inp" readOnly value={apiUrl} />
           </div>
           {proxied ? (
             <p style={{ margin: "0 0 8px", fontSize: 11, color: "var(--portal-muted)" }}>
-              HTTPS sites cannot call plain HTTP APIs (mixed content). With proxy mode, the browser calls{" "}
-              <code style={{ fontFamily: "var(--font-mono)" }}>/api/eventflow/…</code> on this host and Vercel forwards to{" "}
-              <code style={{ fontFamily: "var(--font-mono)" }}>EVENTFLOW_UPSTREAM_URL</code>.
+              Secure pages cannot call non-HTTPS backends directly. With proxy mode on, this portal reaches your API through
+              the same hostname you are using now.
             </p>
           ) : null}
           <p style={{ margin: 0, fontSize: 11, color: "var(--portal-muted)" }}>
-            JWT is issued by Supabase; use the same account as the EventFlow mobile app.
+            Use one EventFlow account on mobile and here so listings and businesses stay in sync.
           </p>
         </div>
       </div>

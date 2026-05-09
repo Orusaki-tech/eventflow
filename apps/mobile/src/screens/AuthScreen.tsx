@@ -38,11 +38,11 @@ export function AuthScreen({ navigation }: Props) {
     return (
       <View style={styles.center}>
         <AppText variant="headline" style={styles.title}>
-          Configure Supabase
+          Sign-in unavailable
         </AppText>
         <AppText tone="secondary" style={styles.body}>
-          Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in your environment, then
-          rebuild. The EventFlow API must accept the same Supabase JWT (see backend README).
+          This build is missing account sign-in configuration. If you are developing EventFlow, add the required public keys
+          to your environment and rebuild. Otherwise, contact support for a configured build.
         </AppText>
       </View>
     );
@@ -74,6 +74,12 @@ export function AuthScreen({ navigation }: Props) {
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <AppText variant="headline" style={styles.title}>
+        EventFlow
+      </AppText>
+      <AppText tone="secondary" style={[styles.body, { marginBottom: tokens.spacing[16] }]}>
+        Sign in or create an account to sync your events across devices.
+      </AppText>
       <AppText variant="labelSmall" tone="tertiary" style={styles.label}>
         Email
       </AppText>

@@ -168,7 +168,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
               className="portal-topbar-pill"
               title={
                 process.env.NEXT_PUBLIC_EVENTFLOW_API_PROXY === "1"
-                  ? "Requests use /api/eventflow proxy (see EVENTFLOW_UPSTREAM_URL on server)"
+                  ? "API requests go through this site’s proxy"
                   : (process.env.NEXT_PUBLIC_EVENTFLOW_API_URL ?? "")
               }
             >

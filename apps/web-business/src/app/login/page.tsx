@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 
-const supabaseEnvReady =
+const authConfigured =
   Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()) &&
   Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim());
 
@@ -34,43 +34,49 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="marketing-wrap">
-      <div className="card">
-      <h1 style={{ marginTop: 0 }}>Sign in</h1>
-      <p style={{ color: "var(--muted)" }}>Use the same Supabase user as EventFlow mobile.</p>
-      {!supabaseEnvReady ? (
-        <p className="error" style={{ marginBottom: "1rem" }}>
-          Supabase env is not configured. Add{" "}
-          <code style={{ color: "inherit" }}>NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
-          <code style={{ color: "inherit" }}>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in Vercel → Settings → Environment
-          Variables, then redeploy. See <code style={{ color: "inherit" }}>apps/web-business/.env.example</code>.
+    <div className="auth-shell">
+      <div className="auth-card">
+        <p className="auth-brand">EventFlow</p>
+        <h1 className="auth-title">Welcome back</h1>
+        <p className="auth-lede">
+          Sign in with the same EventFlow account you use on your phone to manage listings, businesses, and media from the
+          web.
         </p>
-      ) : null}
-      <form onSubmit={(e) => void onSubmit(e)}>
-        <label>
-          Email
-          <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </label>
-        <label>
-          Password
-          <input
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </label>
-        {error ? <p className="error">{error}</p> : null}
-        <div style={{ marginTop: "1rem", display: "flex", gap: "0.75rem", alignItems: "center" }}>
-          <button type="submit" disabled={busy || !supabaseEnvReady}>
-            {busy ? "Signing in…" : "Sign in"}
-          </button>
-          <Link href="/" style={{ color: "var(--muted)" }}>
-            Home
-          </Link>
-        </div>
-      </form>
+        {!authConfigured ? (
+          <p className="error" style={{ marginBottom: "1rem" }}>
+            Sign-in is not enabled on this deployment yet. Whoever hosts this app still needs to finish the hosting setup.
+          </p>
+        ) : null}
+        <form className="auth-form" onSubmit={(e) => void onSubmit(e)}>
+          <label>
+            Email
+            <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </label>
+          <label>
+            Password
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </label>
+          {error ? <p className="error">{error}</p> : null}
+          <div className="auth-actions">
+            <div className="auth-actions-row">
+              <button type="submit" className="auth-submit" disabled={busy || !authConfigured}>
+                {busy ? "Signing in…" : "Sign in"}
+              </button>
+              <Link href="/" style={{ fontSize: "0.9rem", color: "var(--muted)" }}>
+                Home
+              </Link>
+            </div>
+          </div>
+        </form>
+        <p className="auth-footer">
+          New here? Create your account in the EventFlow mobile app first, then return to sign in on the web.
+        </p>
       </div>
     </div>
   );
