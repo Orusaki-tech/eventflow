@@ -52,6 +52,8 @@ class Settings(BaseSettings):
 
     expo_access_token: Optional[str] = Field(default=None, alias="EXPO_ACCESS_TOKEN")
     admin_user_ids_csv: str | None = Field(default=None, alias="ADMIN_USER_IDS")
+    # When non-empty: JWT ``email`` claim must match (case-insensitive); ADMIN_USER_IDS / DB allowlist ignored for admin.
+    admin_operator_emails_csv: str | None = Field(default=None, alias="ADMIN_OPERATOR_EMAILS")
     # Bearer-equivalent for moderation / verified toggles from tooling or portal backends.
     admin_api_token: Optional[str] = Field(default=None, alias="ADMIN_API_TOKEN")
 

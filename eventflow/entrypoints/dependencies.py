@@ -22,7 +22,7 @@ from eventflow.adapters.poster_store import PosterStore
 from eventflow.adapters.share_parse_cache import NoOpShareParseCache, ShareParseCache
 from eventflow.service_layer.unit_of_work import AbstractUnitOfWork, FakeUnitOfWork, SqlAlchemyUnitOfWork
 from eventflow.adapters.orm import start_mappers
-from eventflow.auth.supabase import verify_supabase_jwt
+from eventflow.auth.supabase import AuthenticatedUser, verify_supabase_jwt
 import jwt
 from urllib.error import URLError
 import logging
@@ -65,29 +65,26 @@ def _get_local_user_id() -> UUID:
     return uuid4()
 
 
-def get_current_user_id(
-    creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
-) -> UUID:
+def _authenticated_user_from_bearer(
+    creds: HTTPAuthorizationCredentials | None,
+) -> AuthenticatedUser:
+    """Resolve bearer (or local synthetic user). Shared by ``get_current_user_id`` and admin checks."""
     settings = get_settings()
-    # Local dev fallback: allow missing auth header for quick iteration/testing.
     if settings.env == "local" and settings.allow_unauthenticated_local:
         if creds is None or creds.scheme.lower() != "bearer":
-            return _get_local_user_id()
+            return AuthenticatedUser(id=str(_get_local_user_id()), raw_claims={})
 
     if not settings.supabase_jwks_url:
         if settings.env in ("prod", "dev") or not settings.allow_unauthenticated_local:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Auth not configured")
-        # Local/test fallback until auth env is configured.
-        return _get_local_user_id()
+        return AuthenticatedUser(id=str(_get_local_user_id()), raw_claims={})
 
     if creds is None or creds.scheme.lower() != "bearer":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token")
 
     try:
-        user = verify_supabase_jwt(creds.credentials)
-        return UUID(user.id)
+        return verify_supabase_jwt(creds.credentials)
     except jwt.PyJWTError as e:
-        # In local dev, surface the underlying reason to speed up setup/debugging.
         if settings.env == "local":
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -95,7 +92,6 @@ def get_current_user_id(
             )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
     except URLError as e:
-        # JWKS fetch / network failure should not masquerade as a bad user token.
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Auth temporarily unavailable (JWKS fetch failed): {e}",
@@ -107,9 +103,27 @@ def get_current_user_id(
         )
 
 
+def get_authenticated_supabase_user(
+    creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> AuthenticatedUser:
+    """Full JWT claims (incl. ``email``) for admin allowlist; same local shortcut as ``get_current_user_id``."""
+    return _authenticated_user_from_bearer(creds)
+
+
+def get_current_user_id(
+    creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> UUID:
+    return UUID(_authenticated_user_from_bearer(creds).id)
+
+
 def _parse_admin_user_ids_csv() -> set[str]:
     csv = get_settings().admin_user_ids_csv or ""
     return {s.strip() for s in csv.split(",") if s.strip()}
+
+
+def _parse_admin_operator_emails_csv() -> set[str]:
+    csv = get_settings().admin_operator_emails_csv or ""
+    return {s.strip().lower() for s in csv.split(",") if s.strip()}
 
 
 def _admin_in_allowlist_table(session: object, user_id: UUID) -> bool:
@@ -124,16 +138,26 @@ def _admin_in_allowlist_table(session: object, user_id: UUID) -> bool:
         return False
 
 
-def is_admin_user(user_id: UUID, session: object | None = None) -> bool:
+def is_admin_user(
+    user_id: UUID,
+    session: object | None = None,
+    jwt_claims: dict | None = None,
+) -> bool:
     """
     Operator access for JWT routes.
 
-    True when ``user_id`` is in env ``ADMIN_USER_IDS`` **or** (when ``session`` is a DB session) present in
-    ``admin_console_allowlist``. Use the table for routine adds/removals without redeploys; env CSV is optional
-    bootstrap.
+    If ``ADMIN_OPERATOR_EMAILS`` is non-empty: allow only when JWT ``email`` (case-insensitive) is listed;
+    ``ADMIN_USER_IDS`` and ``admin_console_allowlist`` are ignored.
 
-    Regular platform users are never listed — only trusted operators (~small cardinality).
+    Otherwise: ``ADMIN_USER_IDS`` env and/or ``admin_console_allowlist`` table (when ``session`` is set).
     """
+    emails = _parse_admin_operator_emails_csv()
+    if emails:
+        raw = (jwt_claims or {}).get("email")
+        if not raw or not isinstance(raw, str):
+            return False
+        return raw.strip().lower() in emails
+
     if str(user_id) in _parse_admin_user_ids_csv():
         return True
     if session is None:
@@ -281,10 +305,11 @@ def get_session() -> Iterator[object]:
 
 
 def require_admin_user(
-    user_id: UUID = Depends(get_current_user_id),
+    auth_user: AuthenticatedUser = Depends(get_authenticated_supabase_user),
     session=Depends(get_session),
 ) -> UUID:
-    """JWT dependency: bearer user must match ``ADMIN_USER_IDS`` or row in ``admin_console_allowlist``."""
-    if not is_admin_user(user_id, session=session):
+    """JWT dependency: see ``is_admin_user`` (email allowlist or UUID/table)."""
+    user_id = UUID(auth_user.id)
+    if not is_admin_user(user_id, session=session, jwt_claims=auth_user.raw_claims):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     return user_id
