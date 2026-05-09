@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import json
 import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
-from fastapi.exceptions import RequestValidationError
+from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -136,6 +138,28 @@ def create_app() -> FastAPI:
             status_code=exc.status_code,
             title="HTTP error",
             detail=str(exc.detail),
+            instance=str(request.url),
+        )
+
+    @app.exception_handler(ResponseValidationError)
+    async def _response_validation_error(request: Request, exc: ResponseValidationError):
+        _log.warning("response validation failed path=%s errors=%s", request.url.path, exc.errors())
+        return problem(
+            status_code=500,
+            title="Response validation error",
+            detail=json.dumps(exc.errors(), default=str),
+            instance=str(request.url),
+        )
+
+    @app.exception_handler(SQLAlchemyError)
+    async def _sqlalchemy_error(request: Request, exc: SQLAlchemyError):
+        root = getattr(exc, "orig", None)
+        msg = str(root) if root is not None else str(exc)
+        _log.exception("database error on %s: %s", request.url.path, msg)
+        return problem(
+            status_code=503,
+            title="Database error",
+            detail=msg,
             instance=str(request.url),
         )
 
