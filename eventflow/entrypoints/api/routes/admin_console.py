@@ -77,14 +77,14 @@ async def admin_console_businesses(
     if session is None:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
 
-    pat = f"%{q.strip()}%" if q and q.strip() else None
+    pat = f"%{q.strip()}%" if q and q.strip() else "%"
     rows = session.execute(
         text(
             """
             SELECT id, name, whatsapp_e164, owner_user_id, verified, created_at,
                    COUNT(*) OVER() AS __total
             FROM businesses
-            WHERE (:pat IS NULL OR name ILIKE :pat)
+            WHERE name ILIKE :pat
             ORDER BY created_at DESC
             LIMIT :limit OFFSET :offset
             """
@@ -121,7 +121,7 @@ async def admin_console_community_events(
     if session is None:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
 
-    pat = f"%{q.strip()}%" if q and q.strip() else None
+    pat = f"%{q.strip()}%" if q and q.strip() else "%"
     rows = session.execute(
         text(
             """
@@ -132,11 +132,7 @@ async def admin_console_community_events(
                    ) AS attached_business_id,
                    COUNT(*) OVER() AS __total
             FROM community_events e
-            WHERE (
-              :pat IS NULL
-              OR e.title ILIKE :pat
-              OR e.venue ILIKE :pat
-            )
+            WHERE (e.title ILIKE :pat OR e.venue ILIKE :pat)
             ORDER BY e.start_time DESC
             LIMIT :limit OFFSET :offset
             """
