@@ -449,7 +449,7 @@ class AdminConsoleBusinessRow(BaseModel):
     business_id: UUID
     name: str
     whatsapp_e164: str | None
-    owner_user_id: UUID
+    owner_user_id: UUID | None = None
     verified: bool
     created_at: datetime
 

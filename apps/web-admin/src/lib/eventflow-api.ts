@@ -31,10 +31,14 @@ export async function efFetch<T>(
   const url = `${apiOrigin()}${apiPathPrefix()}${path}`;
   const res = await fetch(url, { ...init, headers, body });
   if (!res.ok) {
-    let detail = res.statusText;
+    let detail = res.statusText?.trim() || "";
     try {
-      const j = (await res.json()) as { detail?: unknown };
-      if (typeof j.detail === "string") detail = j.detail;
+      const j = (await res.json()) as Record<string, unknown>;
+      const d = j.detail;
+      if (typeof d === "string" && d.trim()) detail = d;
+      else if (d !== undefined) detail = JSON.stringify(d);
+      else if (typeof j.title === "string" && j.title.trim())
+        detail = `${j.title}${typeof j.status === "number" ? ` (${j.status})` : ""}`;
     } catch {
       /* ignore */
     }
@@ -68,7 +72,7 @@ export type AdminBusinessRow = {
   business_id: string;
   name: string;
   whatsapp_e164: string | null;
-  owner_user_id: string;
+  owner_user_id: string | null;
   verified: boolean;
   created_at: string;
 };

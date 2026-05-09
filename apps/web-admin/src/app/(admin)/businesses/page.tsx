@@ -107,7 +107,7 @@ export default function AdminBusinessesPage() {
               {rows.map((r) => (
                 <tr key={r.business_id}>
                   <td>{r.name}</td>
-                  <td style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{r.owner_user_id}</td>
+                  <td style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{r.owner_user_id ?? "—"}</td>
                   <td>{r.verified ? "yes" : "no"}</td>
                   <td style={{ color: "var(--portal-muted)" }}>{r.whatsapp_e164 ?? "—"}</td>
                   <td style={{ whiteSpace: "nowrap" }}>
