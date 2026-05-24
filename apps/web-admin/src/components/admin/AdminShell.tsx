@@ -3,6 +3,7 @@
 import {
   IconDotsVertical,
   IconLayoutDashboard,
+  IconLink,
   IconLogout,
   IconPhoto,
   IconShieldLock,
@@ -23,6 +24,7 @@ function formatBreadcrumb(pathname: string): { muted: string; rest: string } {
   if (pathname === "/businesses") return { muted: "Directory", rest: "Businesses" };
   if (pathname === "/listings") return { muted: "Directory", rest: "Community listings" };
   if (pathname === "/posters") return { muted: "Media", rest: "Poster assets" };
+  if (pathname === "/shared-links") return { muted: "Moderation", rest: "Shared links" };
   return { muted: "Admin", rest: "Console" };
 }
 
@@ -182,6 +184,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <Link href="/posters" className={navCls("/posters")}>
               <IconPhoto size={15} stroke={1.75} />
               Posters
+            </Link>
+            <div className="portal-nav-grp">Moderation</div>
+            <Link href="/shared-links" className={navCls("/shared-links")}>
+              <IconLink size={15} stroke={1.75} />
+              Shared links
             </Link>
           </nav>
           <div className="portal-sidebar-foot">

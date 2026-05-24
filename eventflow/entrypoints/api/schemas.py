@@ -516,3 +516,27 @@ class AdminConsolePosterAssetListResponse(BaseModel):
     limit: int
     offset: int
 
+
+class AdminConsoleSharedLinkListingRow(BaseModel):
+    normalized_url: str
+    status: str
+    cached_payload: dict | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminConsoleSharedLinkListingListResponse(BaseModel):
+    items: list[AdminConsoleSharedLinkListingRow]
+    total: int
+    limit: int
+    offset: int
+
+
+class AdminSharedLinkListingUpdateRequest(BaseModel):
+    url: str = Field(..., min_length=4, max_length=4096)
+    title: str | None = None
+    venue: str | None = None
+    start_time: str | None = Field(None, description="ISO 8601, empty string to clear")
+    price: str | None = None
+    status: str | None = Field(None, pattern="^(pending|approved|rejected)$")
+

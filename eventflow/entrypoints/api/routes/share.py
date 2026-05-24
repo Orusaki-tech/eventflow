@@ -274,13 +274,41 @@ async def share_url(
     norm = normalize_shared_url(body.url)
     if session is not None:
         row = session.execute(
-            text("SELECT status FROM shared_link_listings WHERE normalized_url = :u LIMIT 1"),
+            text("SELECT status, cached_payload FROM shared_link_listings WHERE normalized_url = :u LIMIT 1"),
             {"u": norm},
         ).first()
         if row is not None and row[0] == "rejected":
             raise HTTPException(
                 status_code=409,
                 detail="This shared link was rejected. Enter event details manually.",
+            )
+
+        # Admin-approved link — use cached_payload directly, skip model.
+        if row is not None and row[0] == "approved" and row[1] is not None:
+            _log.info(
+                "share_url_parse admin_approved url_key=%s",
+                _url_parse_log_key(body.url),
+            )
+            payload = row[1]
+            parsed_adm = ParsedEventDraft(
+                title=str(payload.get("title") or ""),
+                start_time=_safe_fromisoformat(payload.get("start_time")),
+                venue=str(payload.get("venue") or ""),
+                confidence_score=1.0,
+                price=payload.get("price"),
+            )
+            out_adm = handlers.persist_draft_from_parsed(user_id=user_id, parsed=parsed_adm, uow=uow)
+            preview_adm = try_preview_image_bytes_for_share_url(body.url)
+            if preview_adm:
+                out_adm["_share_preview_image_bytes"] = preview_adm[0]
+                out_adm["_share_preview_content_type"] = preview_adm[1]
+            return _attach_share_url_preview_poster(
+                uow=uow,
+                poster_store=poster_store,
+                user_id=user_id,
+                source_url=body.url,
+                draft_out=out_adm,
+                session=session,
             )
 
         alias_out = try_share_url_from_community_listing_alias(

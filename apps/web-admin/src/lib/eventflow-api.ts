@@ -172,3 +172,55 @@ export async function listAdminPosterAssets(
   const qs = q.toString();
   return efFetch(`/api/v1/admin/console/poster-assets${qs ? `?${qs}` : ""}`, token, { method: "GET" });
 }
+
+// --- Shared Link Listings ---
+
+export type AdminSharedLinkListingRow = {
+  normalized_url: string;
+  status: string;
+  cached_payload: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdminSharedLinkListingListResponse = {
+  items: AdminSharedLinkListingRow[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export async function listAdminSharedLinkListings(
+  token: string,
+  params: { limit?: number; offset?: number; q?: string; status?: string }
+): Promise<AdminSharedLinkListingListResponse> {
+  const q = new URLSearchParams();
+  if (params.limit != null) q.set("limit", String(params.limit));
+  if (params.offset != null) q.set("offset", String(params.offset));
+  if (params.q?.trim()) q.set("q", params.q.trim());
+  if (params.status) q.set("status", params.status);
+  const qs = q.toString();
+  return efFetch(`/api/v1/admin/console/shared-link-listings${qs ? `?${qs}` : ""}`, token, { method: "GET" });
+}
+
+export async function getAdminSharedLinkListing(
+  token: string,
+  url: string
+): Promise<AdminSharedLinkListingRow> {
+  const q = new URLSearchParams({ url });
+  return efFetch(`/api/v1/admin/console/shared-link-listing?${q.toString()}`, token, { method: "GET" });
+}
+
+export async function putAdminSharedLinkListing(
+  token: string,
+  body: {
+    url: string;
+    title?: string | null;
+    venue?: string | null;
+    start_time?: string | null;
+    price?: string | null;
+    status?: string | null;
+  }
+): Promise<AdminSharedLinkListingRow> {
+  return efFetch("/api/v1/admin/console/shared-link-listing", token, { method: "PUT", json: body });
+}
