@@ -131,6 +131,15 @@ async def patch_business(
         wa = body.whatsapp_e164.strip()
         sets.append("whatsapp_e164 = :wa")
         params["wa"] = wa if wa else None
+    for col, val in (
+        ("description", body.description),
+        ("logo_url", body.logo_url),
+        ("website", body.website),
+        ("contact_email", body.contact_email),
+    ):
+        if val is not None:
+            sets.append(f"{col} = :{col}")
+            params[col] = val.strip() if isinstance(val, str) else val
     if not sets:
         row = session.execute(
             text("SELECT id, name, whatsapp_e164, verified FROM businesses WHERE id = :id LIMIT 1"),

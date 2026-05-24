@@ -22,6 +22,7 @@ import { useThemedStyles } from "../design/useThemedStyles";
 import { formatFriendlyEventDateTime } from "../lib/eventDateTime";
 import { whatsAppMeUrlFromE164 } from "../lib/whatsappLink";
 import type { RootStackParamList } from "../navigation/types";
+import { navigationRef } from "../navigation/navigationRef";
 
 type Props = NativeStackScreenProps<RootStackParamList, "CommunityListingDetail">;
 
@@ -273,13 +274,21 @@ export function CommunityListingDetailScreen({ route }: Props) {
       ) : null}
 
       {canFollowBiz ? (
-        <Button
-          label={bizFollowing ? "Following business" : "Follow business"}
-          variant={bizFollowing ? "filled" : "outline"}
-          loading={bizFollowBusy}
-          onPress={toggleFollowBiz}
-          fullWidth
-        />
+        <View style={{ gap: 8 }}>
+          <Button
+            label={bizFollowing ? "Following business" : "Follow business"}
+            variant={bizFollowing ? "filled" : "outline"}
+            loading={bizFollowBusy}
+            onPress={toggleFollowBiz}
+            fullWidth
+          />
+          <Button
+            label="View profile"
+            variant="outline"
+            onPress={() => navigationRef.navigate("BusinessProfileView", { businessId: business_id! })}
+            fullWidth
+          />
+        </View>
       ) : null}
 
       {whatsapp_e164?.trim() && whatsAppMeUrlFromE164(whatsapp_e164.trim()) ? (

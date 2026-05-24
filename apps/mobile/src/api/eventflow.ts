@@ -899,11 +899,47 @@ export async function listFollowedBusinesses(
   return request<BusinessFollowingRow[]>(baseUrl, "/api/v1/businesses/following", token, { method: "GET" });
 }
 
+export type BusinessProfileResponse = {
+  business_id: string;
+  name: string;
+  description: string | null;
+  logo_url: string | null;
+  website: string | null;
+  contact_email: string | null;
+  whatsapp_e164: string | null;
+  verified: boolean;
+  follower_count: number;
+  listing_count: number;
+  listings: BusinessProfileListingRow[];
+};
+
+export type BusinessProfileListingRow = {
+  community_event_id: string;
+  title: string;
+  start_time: string;
+  venue: string;
+  poster_image_uri: string | null;
+  hero_video_uri: string | null;
+  whatsapp_e164: string | null;
+};
+
+export async function getBusinessProfile(
+  baseUrl: string,
+  businessId: string
+): Promise<BusinessProfileResponse> {
+  return request<BusinessProfileResponse>(
+    baseUrl,
+    `/api/v1/discovery/business/${encodeURIComponent(businessId)}`,
+    null,
+    { method: "GET" }
+  );
+}
+
 export async function patchBusiness(
   baseUrl: string,
   token: string | null,
   businessId: string,
-  body: { name?: string; whatsapp_e164?: string | null }
+  body: { name?: string; whatsapp_e164?: string | null; description?: string | null; logo_url?: string | null; website?: string | null; contact_email?: string | null }
 ): Promise<BusinessResponse> {
   return request<BusinessResponse>(
     baseUrl,

@@ -445,6 +445,7 @@ export default function ListingDetailPage() {
                 const types = ttEditor.filter(t => t.name.trim() && t.price_minor_units.trim());
                 void run(async () => {
                   await bulkSetTicketTypes(token, id, types.map(t => ({
+                    ticket_type_id: t.ticket_type_id || null,
                     name: t.name.trim(),
                     price_minor_units: parseInt(t.price_minor_units) || 0,
                     quantity_available: t.quantity_available.trim() ? parseInt(t.quantity_available) || null : null,

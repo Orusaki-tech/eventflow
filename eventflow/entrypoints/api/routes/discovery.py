@@ -9,6 +9,8 @@ from eventflow.adapters.embeddings_client import DeterministicEmbeddingsClient
 from eventflow.adapters.share_parse_cache import normalize_shared_url
 from eventflow.domain import commands
 from eventflow.entrypoints.api.schemas import (
+    BusinessProfileListingRow,
+    BusinessProfileResponse,
     CommunityEventMineDetailResponse,
     CommunityEventMineListRowResponse,
     CommunityEventResponse,
@@ -121,4 +123,78 @@ async def upsert_community_event(
         uow,
     )
     return result
+
+
+@router.get("/discovery/business/{business_id}", response_model=BusinessProfileResponse)
+async def discovery_business_profile(
+    business_id: UUID,
+    session=Depends(get_session),
+):
+    if session is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    biz = session.execute(
+        text(
+            "SELECT id, name, description, logo_url, website, contact_email, whatsapp_e164, verified "
+            "FROM businesses WHERE id = :id LIMIT 1"
+        ),
+        {"id": str(business_id)},
+    ).first()
+    if biz is None:
+        raise HTTPException(status_code=404, detail="Business not found")
+
+    follower_count_row = session.execute(
+        text("SELECT COUNT(*) FROM business_follows WHERE business_id = :id"),
+        {"id": str(business_id)},
+    ).scalar()
+
+    listings = session.execute(
+        text(
+            """
+            SELECT e.id, e.title, e.start_time, e.venue, e.poster_image_uri,
+                   v.hero_video_uri, b.whatsapp_e164
+            FROM community_events e
+            INNER JOIN business_listing_attachments bl ON bl.community_event_id = e.id
+            LEFT JOIN businesses b ON b.id = bl.business_id
+            LEFT JOIN LATERAL (
+              SELECT ev.storage_uri AS hero_video_uri
+              FROM event_videos ev
+              WHERE ev.community_event_id = e.id AND ev.moderation_status = 'approved'
+              ORDER BY ev.created_at ASC
+              LIMIT 1
+            ) v ON TRUE
+            WHERE bl.business_id = :id AND e.start_time > NOW()
+            ORDER BY e.start_time ASC
+            LIMIT 50
+            """
+        ),
+        {"id": str(business_id)},
+    ).fetchall()
+
+    listing_rows = [
+        BusinessProfileListingRow(
+            community_event_id=r[0],
+            title=r[1],
+            start_time=r[2],
+            venue=r[3],
+            poster_image_uri=r[4],
+            hero_video_uri=r[5],
+            whatsapp_e164=r[6],
+        )
+        for r in listings
+    ]
+
+    return BusinessProfileResponse(
+        business_id=biz[0],
+        name=biz[1],
+        description=biz[2],
+        logo_url=biz[3],
+        website=biz[4],
+        contact_email=biz[5],
+        whatsapp_e164=biz[6],
+        verified=biz[7],
+        follower_count=follower_count_row or 0,
+        listing_count=len(listing_rows),
+        listings=listing_rows,
+    )
 

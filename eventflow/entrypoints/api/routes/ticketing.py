@@ -15,6 +15,14 @@ from starlette.responses import Response
 
 from eventflow.entrypoints.api.schemas import (
     AdminClaimResolveRequest,
+    AdminClaimRow,
+    AdminModerateResponse,
+    AdminOrderRow,
+    AdminPayoutRow,
+    AdminProcessPayoutResponse,
+    AdminResolveResponse,
+    AdminVideoRow,
+    CheckInResponse,
     ClaimCreateRequest,
     ClaimResponse,
     DashboardResponse,
@@ -24,6 +32,10 @@ from eventflow.entrypoints.api.schemas import (
     FeedWatchResponse,
     OrderResponse,
     OrderTicketRow,
+    PayoutRequest,
+    PayoutRequestResponse,
+    PayoutSettingsResponse,
+    PayoutResponse,
     PlatformSettingsResponse,
     PlatformSettingsUpdateRequest,
     PointsResponse,
@@ -32,16 +44,17 @@ from eventflow.entrypoints.api.schemas import (
     ProductEventLinkRequest,
     ProductEventLinkResponse,
     ProductResponse,
-    PayoutRequest,
-    PayoutResponse,
     PurchaseItem,
     PurchaseRequest,
     PurchaseResponse,
     RedeemPointsRequest,
     ReferralLinkResponse,
+    SalesDetailRow,
     SubscriptionResponse,
     TapPackBuyRequest,
     TapPackResponse,
+    TicketLookupResponse,
+    TicketResendResponse,
     TicketTypeBulkRequest,
     TicketTypeBulkRow,
     TicketTypeResponse,
@@ -520,7 +533,7 @@ async def get_order(
     )
 
 
-@router.post("/tickets/orders/{order_id}/resend", status_code=status.HTTP_200_OK)
+@router.post("/tickets/orders/{order_id}/resend", status_code=status.HTTP_200_OK, response_model=TicketResendResponse)
 async def resend_tickets(
     order_id: UUID,
     user_id=Depends(get_current_user_id),
@@ -541,7 +554,7 @@ async def resend_tickets(
     return {"tickets": [t[0] for t in tickets]}
 
 
-@router.get("/tickets/{short_code}", status_code=status.HTTP_200_OK)
+@router.get("/tickets/{short_code}", status_code=status.HTTP_200_OK, response_model=TicketLookupResponse)
 async def get_ticket(
     short_code: str,
     user_id=Depends(get_current_user_id),
@@ -580,7 +593,7 @@ async def get_ticket(
 # ─── Check-in ────────────────────────────────────────────────────────────
 
 
-@router.post("/business/check-in/{short_code}", status_code=status.HTTP_200_OK)
+@router.post("/business/check-in/{short_code}", status_code=status.HTTP_200_OK, response_model=CheckInResponse)
 async def check_in_ticket(
     short_code: str,
     user_id=Depends(get_current_user_id),
@@ -703,7 +716,7 @@ async def business_dashboard(
     )
 
 
-@router.get("/business/events/{community_event_id}/sales", status_code=status.HTTP_200_OK)
+@router.get("/business/events/{community_event_id}/sales", status_code=status.HTTP_200_OK, response_model=list[SalesDetailRow])
 async def event_sales_detail(
     community_event_id: UUID,
     user_id=Depends(get_current_user_id),
@@ -1342,7 +1355,7 @@ async def approve_affiliate_request(
 # ─── Payouts ─────────────────────────────────────────────────────────────
 
 
-@router.get("/business/payout-settings", status_code=status.HTTP_200_OK)
+@router.get("/business/payout-settings", status_code=status.HTTP_200_OK, response_model=PayoutSettingsResponse)
 async def get_payout_settings(
     user_id=Depends(get_current_user_id),
     session=Depends(get_session),
@@ -1478,7 +1491,7 @@ async def list_payouts(
     ]
 
 
-@router.post("/business/payouts/request", status_code=status.HTTP_201_CREATED)
+@router.post("/business/payouts/request", status_code=status.HTTP_201_CREATED, response_model=PayoutRequestResponse)
 async def request_payout(
     user_id=Depends(get_current_user_id),
     session=Depends(get_session),
@@ -1762,7 +1775,7 @@ async def cancel_subscription(
 # ─── Admin Endpoints ──────────────────────────────────────────────────────
 
 
-@router.get("/admin/console/orders", status_code=status.HTTP_200_OK)
+@router.get("/admin/console/orders", status_code=status.HTTP_200_OK, response_model=list[AdminOrderRow])
 async def admin_list_orders(
     _admin: UUID = Depends(require_admin_user),
     session=Depends(get_session),
@@ -1798,7 +1811,7 @@ async def admin_list_orders(
     ]
 
 
-@router.get("/admin/console/claims", status_code=status.HTTP_200_OK)
+@router.get("/admin/console/claims", status_code=status.HTTP_200_OK, response_model=list[AdminClaimRow])
 async def admin_list_claims(
     _admin: UUID = Depends(require_admin_user),
     session=Depends(get_session),
@@ -1840,7 +1853,7 @@ async def admin_list_claims(
     ]
 
 
-@router.patch("/admin/console/claims/{claim_id}", status_code=status.HTTP_200_OK)
+@router.patch("/admin/console/claims/{claim_id}", status_code=status.HTTP_200_OK, response_model=AdminResolveResponse)
 async def admin_resolve_claim(
     claim_id: UUID,
     body: AdminClaimResolveRequest,
@@ -1887,7 +1900,7 @@ async def admin_resolve_claim(
     return {"ok": True, "status": new_status}
 
 
-@router.get("/admin/console/payouts", status_code=status.HTTP_200_OK)
+@router.get("/admin/console/payouts", status_code=status.HTTP_200_OK, response_model=list[AdminPayoutRow])
 async def admin_list_payouts(
     _admin: UUID = Depends(require_admin_user),
     session=Depends(get_session),
@@ -1923,7 +1936,7 @@ async def admin_list_payouts(
     ]
 
 
-@router.post("/admin/console/payouts/{payout_id}/process", status_code=status.HTTP_200_OK)
+@router.post("/admin/console/payouts/{payout_id}/process", status_code=status.HTTP_200_OK, response_model=AdminProcessPayoutResponse)
 async def admin_process_payout(
     payout_id: UUID,
     _admin: UUID = Depends(require_admin_user),
@@ -1948,7 +1961,7 @@ async def admin_get_platform_settings(
     session=Depends(get_session),
 ):
     if session is None:
-        return []
+        raise HTTPException(status_code=503, detail="Database unavailable")
     rows = session.execute(
         text("SELECT key, value, updated_at FROM platform_settings ORDER BY key ASC")
     ).fetchall()
@@ -1975,7 +1988,7 @@ async def admin_update_platform_setting(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/admin/console/videos", status_code=status.HTTP_200_OK)
+@router.get("/admin/console/videos", status_code=status.HTTP_200_OK, response_model=list[AdminVideoRow])
 async def admin_list_videos(
     _admin: UUID = Depends(require_admin_user),
     session=Depends(get_session),
@@ -2008,7 +2021,7 @@ async def admin_list_videos(
     ]
 
 
-@router.patch("/admin/console/videos/{video_id}/moderation", status_code=status.HTTP_200_OK)
+@router.patch("/admin/console/videos/{video_id}/moderation", status_code=status.HTTP_200_OK, response_model=AdminModerateResponse)
 async def admin_moderate_video(
     video_id: UUID,
     body: VideoModerationRequest,

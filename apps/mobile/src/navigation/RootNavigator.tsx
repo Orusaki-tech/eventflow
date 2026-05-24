@@ -13,6 +13,7 @@ import { CarouselSlidePickScreen } from "../screens/CarouselSlidePickScreen";
 import { ImportLinkScreen } from "../screens/ImportLinkScreen";
 import { ManualVenueScreen } from "../screens/ManualVenueScreen";
 import { CommunityListingDetailScreen } from "../screens/CommunityListingDetailScreen";
+import { BusinessProfileViewScreen } from "../screens/BusinessProfileViewScreen";
 import { OnboardingScreen } from "../screens/OnboardingScreen";
 import { PosterImportScreen } from "../screens/PosterImportScreen";
 import { SharedMediaImportScreen } from "../screens/SharedMediaImportScreen";
@@ -131,6 +132,11 @@ export function RootNavigator() {
           name="CommunityListingDetail"
           component={CommunityListingDetailScreen}
           options={{ title: "Listing" }}
+        />
+        <Stack.Screen
+          name="BusinessProfileView"
+          component={BusinessProfileViewScreen}
+          options={{ title: "Business" }}
         />
         <Stack.Screen
           name="SocialHub"

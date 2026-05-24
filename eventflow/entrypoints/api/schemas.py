@@ -374,6 +374,10 @@ class BusinessResponse(BaseModel):
 class BusinessPatchRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=512)
     whatsapp_e164: str | None = Field(default=None, max_length=32)
+    description: str | None = None
+    logo_url: str | None = None
+    website: str | None = None
+    contact_email: str | None = None
 
 
 class ListingBusinessAttachRequest(BaseModel):
@@ -548,6 +552,39 @@ class AdminSharedLinkListingUpdateRequest(BaseModel):
     start_time: str | None = Field(None, description="ISO 8601, empty string to clear")
     price: str | None = None
     status: str | None = Field(None, pattern="^(pending|approved|rejected)$")
+
+
+class BusinessProfileListingRow(BaseModel):
+    community_event_id: UUID
+    title: str
+    start_time: datetime
+    venue: str
+    poster_image_uri: str | None = None
+    hero_video_uri: str | None = None
+    whatsapp_e164: str | None = None
+
+
+class BusinessProfileResponse(BaseModel):
+    business_id: UUID
+    name: str
+    description: str | None = None
+    logo_url: str | None = None
+    website: str | None = None
+    contact_email: str | None = None
+    whatsapp_e164: str | None = None
+    verified: bool = False
+    follower_count: int = 0
+    listing_count: int = 0
+    listings: list[BusinessProfileListingRow] = []
+
+
+class BusinessProfileUpdateRequest(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    logo_url: str | None = None
+    website: str | None = None
+    contact_email: str | None = None
+    whatsapp_e164: str | None = None
 
 
 # ─── Ticketing v3 ────────────────────────────────────────────────────────
@@ -838,4 +875,111 @@ class PlatformSettingsResponse(BaseModel):
 class PlatformSettingsUpdateRequest(BaseModel):
     key: str
     value: dict
+
+
+# ─── Admin / internal response models ─────────────────────────────────────
+
+
+class TicketResendResponse(BaseModel):
+    tickets: list[str]
+
+
+class TicketLookupResponse(BaseModel):
+    ticket_id: UUID
+    short_code: str
+    ticket_type: str
+    event_title: str
+    start_time: datetime
+    venue: str
+    status: str
+    checked_in_at: datetime | None = None
+
+
+class CheckInResponse(BaseModel):
+    ok: bool
+    checked_in_at: datetime
+
+
+class SalesDetailRow(BaseModel):
+    name: str
+    price_minor_units: int
+    sold: int
+    active: int
+    checked_in: int
+
+
+class PayoutSettingsResponse(BaseModel):
+    payout_method: str = "mpesa_till"
+    mpesa_till_number: str | None = None
+    mpesa_paybill_number: str | None = None
+    mpesa_account_ref: str | None = None
+    bank_name: str | None = None
+    bank_account_name: str | None = None
+    bank_account_number: str | None = None
+    bank_branch_code: str | None = None
+    payout_frequency: str = "manual"
+    minimum_payout_minor: int = 50000
+
+
+class PayoutRequestResponse(BaseModel):
+    payout_id: UUID
+    amount_minor: int
+    status: str
+
+
+class AdminOrderRow(BaseModel):
+    order_id: UUID
+    user_id: UUID
+    event_title: str
+    status: str
+    total_minor: int
+    fee_minor: int
+    payment_provider: str | None = None
+    created_at: datetime
+
+
+class AdminClaimRow(BaseModel):
+    claim_id: UUID
+    order_id: UUID | None = None
+    user_id: UUID
+    claim_type: str
+    reason: str | None = None
+    status: str
+    admin_notes: str | None = None
+    created_at: datetime
+    resolved_at: datetime | None = None
+
+
+class AdminResolveResponse(BaseModel):
+    ok: bool
+    status: str
+
+
+class AdminPayoutRow(BaseModel):
+    payout_id: UUID
+    business_name: str
+    gross_minor: int
+    fees_minor: int
+    net_minor: int
+    status: str
+    reference: str | None = None
+    created_at: datetime
+
+
+class AdminProcessPayoutResponse(BaseModel):
+    ok: bool
+
+
+class AdminVideoRow(BaseModel):
+    video_id: UUID
+    title: str
+    business_name: str | None = None
+    moderation_status: str
+    views: int
+    created_at: datetime
+
+
+class AdminModerateResponse(BaseModel):
+    ok: bool
+    status: str
 

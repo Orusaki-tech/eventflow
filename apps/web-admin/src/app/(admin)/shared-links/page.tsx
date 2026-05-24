@@ -33,9 +33,9 @@ function inputToUtc(value: string): string {
 
 function statusIcon(s: string) {
   switch (s) {
-    case "approved": return <IconCircleCheck size={14} stroke={1.5} style={{ color: "#2b7a2b" }} />;
-    case "rejected": return <IconCircleX size={14} stroke={1.5} style={{ color: "#b33" }} />;
-    default: return <IconClock size={14} stroke={1.5} style={{ color: "#b08500" }} />;
+    case "approved": return <IconCircleCheck size="14" stroke="1.5" style={{ color: "#2b7a2b" }} />;
+    case "rejected": return <IconCircleX size="14" stroke="1.5" style={{ color: "#b33" }} />;
+    default: return <IconClock size="14" stroke="1.5" style={{ color: "#b08500" }} />;
   }
 }
 
