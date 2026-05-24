@@ -530,8 +530,15 @@ a.auth-primary-link:hover {
   gap: 11px;
 }
 
+.portal-grid3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 11px;
+}
+
 @media (max-width: 768px) {
-  .portal-grid2 {
+  .portal-grid2,
+  .portal-grid3 {
     grid-template-columns: 1fr;
   }
   .portal-sidebar {

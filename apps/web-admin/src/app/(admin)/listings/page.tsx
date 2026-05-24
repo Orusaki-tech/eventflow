@@ -93,6 +93,7 @@ export default function AdminListingsPage() {
           <table className="portal-table">
             <thead>
               <tr>
+                <th></th>
                 <th>Title</th>
                 <th>When</th>
                 <th>Venue</th>
@@ -104,6 +105,17 @@ export default function AdminListingsPage() {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.community_event_id}>
+                  <td style={{ padding: "4px 0" }}>
+                    {r.poster_image_uri ? (
+                      <img
+                        src={r.poster_image_uri}
+                        alt=""
+                        style={{ width: 48, height: 48, borderRadius: 4, objectFit: "cover", background: "#222" }}
+                      />
+                    ) : (
+                      <span style={{ color: "#555", fontSize: 10 }}>—</span>
+                    )}
+                  </td>
                   <td>{r.title}</td>
                   <td style={{ whiteSpace: "nowrap", fontSize: 11 }}>{new Date(r.start_time).toISOString().slice(0, 16)}</td>
                   <td>{r.venue}</td>

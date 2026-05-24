@@ -134,11 +134,10 @@ export async function registerEventVideo(
   communityEventId: string,
   storageUri: string
 ): Promise<{ video_id: string; moderation_status: string }> {
-  const q = new URLSearchParams({
-    community_event_id: communityEventId,
-    storage_uri: storageUri,
+  return efFetch("/api/v1/event-videos", token, {
+    method: "POST",
+    json: { community_event_id: communityEventId, storage_uri: storageUri },
   });
-  return efFetch(`/api/v1/event-videos?${q.toString()}`, token, { method: "POST" });
 }
 
 export async function postBillingCheckout(token: string, provider: "stripe" | "mpesa_stub" = "stripe") {
@@ -148,4 +147,75 @@ export async function postBillingCheckout(token: string, provider: "stripe" | "m
     token,
     { method: "POST" }
   );
+}
+
+// --- Share / Import ---
+
+export type ShareUrlResult = {
+  draft_id: string;
+  title: string;
+  start_time: string | null;
+  venue: string;
+  confidence_score: number;
+  price: string | null;
+  poster_asset_id: string | null;
+  source_url_raw: string;
+};
+
+export async function shareUrl(token: string, url: string): Promise<ShareUrlResult> {
+  return efFetch("/api/v1/share/url", token, { method: "POST", json: { url } });
+}
+
+export async function deleteListingShareAlias(token: string, communityEventId: string, url: string): Promise<void> {
+  const q = encodeURIComponent(url);
+  await efFetch(
+    `/api/v1/listings/${encodeURIComponent(communityEventId)}/share-alias?url=${q}`,
+    token,
+    { method: "DELETE" }
+  );
+}
+
+// --- Carousel ---
+
+export type CarouselSlide = {
+  kind: string;
+  title: string | null;
+  subtitle: string | null;
+  uri: string | null;
+  image_uri: string | null;
+};
+
+export type ListingCarouselResponse = {
+  community_event_id: string;
+  slides: CarouselSlide[];
+};
+
+export async function getListingCarousel(token: string, communityEventId: string): Promise<ListingCarouselResponse> {
+  return efFetch(`/api/v1/listings/${encodeURIComponent(communityEventId)}/carousel`, token, { method: "GET" });
+}
+
+export async function deleteListingBusiness(token: string, communityEventId: string): Promise<void> {
+  await efFetch(`/api/v1/listings/${encodeURIComponent(communityEventId)}/business`, token, { method: "DELETE" });
+}
+
+// --- Business Follows ---
+
+export type BusinessFollowingRow = {
+  business_id: string;
+  name: string;
+  whatsapp_e164: string | null;
+  verified: boolean;
+  created_at: string;
+};
+
+export async function postFollowBusiness(token: string, businessId: string): Promise<void> {
+  await efFetch(`/api/v1/businesses/${encodeURIComponent(businessId)}/follow`, token, { method: "POST" });
+}
+
+export async function deleteFollowBusiness(token: string, businessId: string): Promise<void> {
+  await efFetch(`/api/v1/businesses/${encodeURIComponent(businessId)}/follow`, token, { method: "DELETE" });
+}
+
+export async function listFollowedBusinesses(token: string): Promise<BusinessFollowingRow[]> {
+  return efFetch("/api/v1/businesses/following", token, { method: "GET" });
 }

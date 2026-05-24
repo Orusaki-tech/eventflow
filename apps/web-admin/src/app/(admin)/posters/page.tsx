@@ -67,6 +67,7 @@ export default function AdminPostersPage() {
           <table className="portal-table">
             <thead>
               <tr>
+                <th></th>
                 <th>SHA256</th>
                 <th>dhash</th>
                 <th>Type</th>
@@ -79,6 +80,13 @@ export default function AdminPostersPage() {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.poster_asset_id}>
+                  <td style={{ padding: "4px 0" }}>
+                    <img
+                      src={`/api/v1/media/poster/${r.poster_asset_id}`}
+                      alt=""
+                      style={{ width: 48, height: 48, borderRadius: 4, objectFit: "cover", background: "#222" }}
+                    />
+                  </td>
                   <td style={{ fontFamily: "var(--font-mono)", fontSize: 10, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis" }}>
                     {r.content_sha256 ?? "—"}
                   </td>

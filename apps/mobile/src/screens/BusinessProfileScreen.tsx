@@ -7,6 +7,7 @@ import {
   BusinessResponse,
   EventflowApiError,
   getBusiness,
+  patchBusiness,
   postBillingCheckoutStub,
   postBusiness,
 } from "../api/eventflow";
@@ -88,12 +89,21 @@ export function BusinessProfileScreen() {
     void (async () => {
       try {
         const wa = whatsapp.trim();
-        const res = await postBusiness(apiBaseUrl, accessToken, {
-          name: n,
-          whatsapp_e164: wa.length ? wa : null,
-        });
-        await AsyncStorage.setItem(STORAGE_MY_BUSINESS_ID, res.business_id);
-        setBusiness(res);
+        const waVal = wa.length ? wa : null;
+        if (business) {
+          const res = await patchBusiness(apiBaseUrl, accessToken, business.business_id, {
+            name: n,
+            whatsapp_e164: waVal,
+          });
+          setBusiness(res);
+        } else {
+          const res = await postBusiness(apiBaseUrl, accessToken, {
+            name: n,
+            whatsapp_e164: waVal,
+          });
+          await AsyncStorage.setItem(STORAGE_MY_BUSINESS_ID, res.business_id);
+          setBusiness(res);
+        }
       } catch (e: unknown) {
         if (e instanceof EventflowApiError && e.status === 401) await refreshSession();
         Alert.alert("Save failed", e instanceof Error ? e.message : String(e));
@@ -169,7 +179,7 @@ export function BusinessProfileScreen() {
           keyboardType="phone-pad"
         />
         <Button
-          label={saving ? "Saving…" : business ? "Update (creates new)" : "Create business"}
+          label={saving ? "Saving…" : business ? "Update" : "Create business"}
           variant="filled"
           loading={saving}
           onPress={createOrReplace}

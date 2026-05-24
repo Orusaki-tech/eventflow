@@ -183,7 +183,7 @@ def _is_private_address(host: str) -> bool:
 
 def _extract_text_from_html(html: str) -> str:
     # Extremely small/robust extraction: remove scripts/styles, strip tags, normalize whitespace.
-    html = re.sub(r"(?is)<(script|style)[^>]*>.*?</\\1>", " ", html)
+    html = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", html)
     html = re.sub(r"(?is)<[^>]+>", " ", html)
     html = unescape(html)
     html = re.sub(r"\\s+", " ", html).strip()

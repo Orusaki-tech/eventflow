@@ -86,6 +86,20 @@ export default function NewListingPage() {
                 value={posterUri}
                 onChange={(e) => setPosterUri(e.target.value)}
               />
+              {posterUri.trim() ? (
+                <img
+                  src={posterUri.trim()}
+                  alt="Poster preview"
+                  style={{
+                    marginTop: 8,
+                    maxWidth: "100%",
+                    maxHeight: 160,
+                    borderRadius: 6,
+                    objectFit: "contain",
+                    background: "#000",
+                  }}
+                />
+              ) : null}
             </div>
           </div>
           <div className="portal-acts">

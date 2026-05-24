@@ -115,16 +115,16 @@ async def share_event_to_group(
         g = uow.session.get(Group, group_id)  # type: ignore[attr-defined]
         if g is None:
             raise HTTPException(status_code=404, detail="Group not found")
-        # Only event owner can share; enforce membership in group.
+        # Enforce membership first to avoid leaking event existence.
+        mem = uow.session.get(GroupMembership, {"group_id": group_id, "user_id": user_id})  # type: ignore[attr-defined]
+        if mem is None:
+            raise HTTPException(status_code=403, detail="Not a group member")
+        # Only event owner can share.
         evt = uow.events.get(body.event_id)
         if evt is None:
             raise HTTPException(status_code=404, detail="Event not found")
         if evt.user_id != user_id:
             raise HTTPException(status_code=403, detail="Not your event")
-
-        mem = uow.session.get(GroupMembership, {"group_id": group_id, "user_id": user_id})  # type: ignore[attr-defined]
-        if mem is None:
-            raise HTTPException(status_code=403, detail="Not a group member")
 
         uow.session.merge(EventShare(event_id=body.event_id, group_id=group_id, shared_by_user_id=user_id, created_at=now))  # type: ignore[attr-defined]
         uow.commit()
@@ -210,6 +210,13 @@ async def rsvp_group_event(
         mem = uow.session.get(GroupMembership, {"group_id": group_id, "user_id": user_id})  # type: ignore[attr-defined]
         if mem is None:
             raise HTTPException(status_code=403, detail="Not a group member")
+        # Verify the event is actually shared to this group.
+        share = uow.session.execute(  # type: ignore[attr-defined]
+            text("SELECT 1 FROM event_shares WHERE event_id = :e AND group_id = :g"),
+            {"e": str(body.event_id), "g": str(group_id)},
+        ).first()
+        if share is None:
+            raise HTTPException(status_code=403, detail="Event not shared to this group")
         uow.session.execute(  # type: ignore[attr-defined]
             text(
                 """

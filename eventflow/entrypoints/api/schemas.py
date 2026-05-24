@@ -412,9 +412,22 @@ class ListingCarouselResponse(BaseModel):
     slides: list[CarouselSlide]
 
 
+class BusinessFollowingRow(BaseModel):
+    business_id: UUID
+    name: str
+    whatsapp_e164: str | None = None
+    verified: bool = False
+    created_at: datetime
+
+
 class BillingCheckoutStubResponse(BaseModel):
     checkout_url: str
     provider: Literal["stripe", "mpesa_stub"] = "stripe"
+
+
+class RegisterEventVideoRequest(BaseModel):
+    community_event_id: UUID
+    storage_uri: str = Field(..., min_length=8, max_length=4096)
 
 
 class GroupJoinByTokenRequest(BaseModel):

@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     JSON,
@@ -263,6 +264,19 @@ poster_asset_parses = Table(
     Column("model_version", String(128), nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False, index=True),
 )
+
+
+business_follows = Table(
+    "business_follows",
+    metadata_obj,
+    Column("follower_user_id", PG_UUID(as_uuid=True), nullable=False),
+    Column("business_id", PG_UUID(as_uuid=True), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    PrimaryKeyConstraint("follower_user_id", "business_id", name="pk_business_follows"),
+    ForeignKeyConstraint(["business_id"], ["businesses.id"], name="fk_business_follows_business", ondelete="CASCADE"),
+)
+Index("ix_business_follows_follower", business_follows.c.follower_user_id)
+Index("ix_business_follows_business", business_follows.c.business_id)
 
 
 event_sources = Table(

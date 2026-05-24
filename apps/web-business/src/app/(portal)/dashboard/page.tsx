@@ -4,22 +4,28 @@ import { IconArrowRight, IconCalendar, IconCreditCard, IconPlus } from "@tabler/
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePortalAuth } from "@/components/portal/portal-auth-context";
-import { listBusinesses, listMineCommunityEvents, type BusinessRow, type CommunityMineRow } from "@/lib/eventflow-api";
+import { listBusinesses, listFollowedBusinesses, listMineCommunityEvents, type BusinessFollowingRow, type BusinessRow, type CommunityMineRow } from "@/lib/eventflow-api";
 
 export default function DashboardOverviewPage() {
   const { token } = usePortalAuth();
   const [businesses, setBusinesses] = useState<BusinessRow[]>([]);
   const [listings, setListings] = useState<CommunityMineRow[]>([]);
+  const [followedBiz, setFollowedBiz] = useState<BusinessFollowingRow[]>([]);
   const [loadErr, setLoadErr] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const [biz, mine] = await Promise.all([listBusinesses(token), listMineCommunityEvents(token, 100)]);
+        const [biz, mine, followed] = await Promise.all([
+          listBusinesses(token),
+          listMineCommunityEvents(token, 100),
+          listFollowedBusinesses(token),
+        ]);
         if (!cancelled) {
           setBusinesses(biz);
           setListings(mine);
+          setFollowedBiz(followed);
         }
       } catch (e: unknown) {
         if (!cancelled) setLoadErr(e instanceof Error ? e.message : String(e));
@@ -44,7 +50,7 @@ export default function DashboardOverviewPage() {
             your phone.
           </p>
           {loadErr ? <p className="portal-error">{loadErr}</p> : null}
-          <div className="portal-grid2">
+          <div className="portal-grid3">
             <div className="portal-empty" style={{ textAlign: "left" as const }}>
               <div className="portal-lbl" style={{ marginBottom: 8 }}>
                 Businesses
@@ -72,6 +78,17 @@ export default function DashboardOverviewPage() {
               <Link href="/listings" className="portal-link-back" style={{ marginTop: 10 }}>
                 View all <IconArrowRight size={13} />
               </Link>
+            </div>
+            <div className="portal-empty" style={{ textAlign: "left" as const }}>
+              <div className="portal-lbl" style={{ marginBottom: 8 }}>
+                Following
+              </div>
+              <p style={{ fontSize: 22, fontWeight: 600, margin: "0 0 4px", color: "var(--portal-fg-soft)" }}>
+                {followedBiz.length}
+              </p>
+              <p style={{ margin: 0, fontSize: 11, color: "#333" }}>
+                <span style={{ color: "#484848" }}>Businesses you follow from the mobile app.</span>
+              </p>
             </div>
           </div>
 

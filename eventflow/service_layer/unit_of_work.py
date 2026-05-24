@@ -77,6 +77,8 @@ class AbstractUnitOfWork(abc.ABC):
 
 
 class FakeUnitOfWork(AbstractUnitOfWork):
+    session: Session | None = None
+
     def __init__(
         self,
         *,
@@ -113,28 +115,37 @@ class FakeUnitOfWork(AbstractUnitOfWork):
 class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
     def __init__(self, session_factory: Callable[[], Session]) -> None:
         self.session_factory = session_factory
+        self._depth = 0
+
+    @property
+    def session(self) -> Session:
+        return self._session
 
     def __enter__(self) -> "SqlAlchemyUnitOfWork":
-        self.session = self.session_factory()
-        self.events = SqlAlchemyEventRepository(self.session)
-        self.drafts = SqlAlchemyDraftRepository(self.session)
-        self.user_locations = SqlAlchemyUserLocationRepository(self.session)
-        self.device_push_tokens = SqlAlchemyDevicePushTokenRepository(self.session)
-        self.community_events = SqlAlchemyCommunityEventRepository(self.session)
-        self.community_event_embeddings = SqlAlchemyCommunityEventEmbeddingRepository(self.session)
-        self.calendar_tokens = SqlAlchemyCalendarTokenRepository(self.session)
-        self.oauth_states = SqlAlchemyOAuthStateRepository(self.session)
-        self.outbox = SqlAlchemyOutboxRepository(self.session)
-        self.venues = SqlAlchemyVenueRepository(self.session)
+        self._depth += 1
+        if self._depth == 1:
+            self._session = self.session_factory()
+            self.events = SqlAlchemyEventRepository(self._session)
+            self.drafts = SqlAlchemyDraftRepository(self._session)
+            self.user_locations = SqlAlchemyUserLocationRepository(self._session)
+            self.device_push_tokens = SqlAlchemyDevicePushTokenRepository(self._session)
+            self.community_events = SqlAlchemyCommunityEventRepository(self._session)
+            self.community_event_embeddings = SqlAlchemyCommunityEventEmbeddingRepository(self._session)
+            self.calendar_tokens = SqlAlchemyCalendarTokenRepository(self._session)
+            self.oauth_states = SqlAlchemyOAuthStateRepository(self._session)
+            self.outbox = SqlAlchemyOutboxRepository(self._session)
+            self.venues = SqlAlchemyVenueRepository(self._session)
         return super().__enter__()
 
     def __exit__(self, *args) -> None:
-        super().__exit__(*args)
-        self.session.close()
+        self._depth -= 1
+        if self._depth == 0:
+            super().__exit__(*args)
+            self._session.close()
 
     def commit(self) -> None:
-        self.session.commit()
+        self._session.commit()
 
     def rollback(self) -> None:
-        self.session.rollback()
+        self._session.rollback()
 

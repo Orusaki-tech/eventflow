@@ -17,6 +17,7 @@ from eventflow.entrypoints.api.schemas import (
     AdminBusinessVerifiedPatchRequest,
     BillingCheckoutStubResponse,
     BusinessCreateRequest,
+    BusinessFollowingRow,
     BusinessPatchRequest,
     BusinessResponse,
     CarouselSlide,
@@ -26,6 +27,7 @@ from eventflow.entrypoints.api.schemas import (
     ListingBusinessAttachRequest,
     ListingCarouselResponse,
     ListingShareAliasPutRequest,
+    RegisterEventVideoRequest,
 )
 from eventflow.entrypoints.dependencies import get_current_user_id, get_session, require_admin_api_token
 from eventflow.service_layer import views
@@ -142,7 +144,8 @@ async def patch_business(
         text("SELECT id, name, whatsapp_e164, verified FROM businesses WHERE id = :id LIMIT 1"),
         {"id": str(business_id)},
     ).first()
-    assert row is not None
+    if row is None:
+        raise HTTPException(status_code=404, detail="Business not found after update")
     return BusinessResponse(business_id=row[0], name=row[1], whatsapp_e164=row[2], verified=bool(row[3]))
 
 
@@ -160,6 +163,41 @@ async def admin_patch_business_verified(
     if session is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
     return set_business_verified(session, business_id=business_id, verified=body.verified)
+
+
+@router.get(
+    "/businesses/following",
+    status_code=status.HTTP_200_OK,
+    response_model=list[BusinessFollowingRow],
+)
+async def list_followed_businesses(
+    user_id=Depends(get_current_user_id),
+    session=Depends(get_session),
+):
+    if session is None:
+        return []
+    rows = session.execute(
+        text(
+            """
+            SELECT b.id, b.name, b.whatsapp_e164, b.verified, bf.created_at
+            FROM business_follows bf
+            INNER JOIN businesses b ON b.id = bf.business_id
+            WHERE bf.follower_user_id = :uid
+            ORDER BY bf.created_at DESC
+            """
+        ),
+        {"uid": str(user_id)},
+    )
+    return [
+        BusinessFollowingRow(
+            business_id=r[0],
+            name=r[1],
+            whatsapp_e164=r[2],
+            verified=bool(r[3]),
+            created_at=r[4],
+        )
+        for r in rows
+    ]
 
 
 @router.get("/businesses/{business_id}", status_code=status.HTTP_200_OK, response_model=BusinessResponse)
@@ -183,6 +221,82 @@ async def get_business(business_id: UUID, session=Depends(get_session)):
         whatsapp_e164=row[2],
         verified=bool(row[3]),
     )
+
+
+@router.post(
+    "/businesses/{business_id}/follow",
+    status_code=status.HTTP_201_CREATED,
+)
+async def follow_business(
+    business_id: UUID,
+    user_id=Depends(get_current_user_id),
+    session=Depends(get_session),
+):
+    if session is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    row = session.execute(
+        text("SELECT 1 FROM businesses WHERE id = :id LIMIT 1"),
+        {"id": str(business_id)},
+    ).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Business not found")
+    now = datetime.now(timezone.utc)
+    session.execute(
+        text(
+            """
+            INSERT INTO business_follows (follower_user_id, business_id, created_at)
+            VALUES (:uid, :biz, :now)
+            ON CONFLICT (follower_user_id, business_id) DO NOTHING
+            """
+        ),
+        {"uid": str(user_id), "biz": str(business_id), "now": now},
+    )
+    session.commit()
+    return {"ok": True}
+
+
+@router.delete(
+    "/businesses/{business_id}/follow",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def unfollow_business(
+    business_id: UUID,
+    user_id=Depends(get_current_user_id),
+    session=Depends(get_session),
+):
+    if session is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    session.execute(
+        text(
+            """
+            DELETE FROM business_follows
+            WHERE follower_user_id = :uid AND business_id = :biz
+            """
+        ),
+        {"uid": str(user_id), "biz": str(business_id)},
+    )
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/businesses/{business_id}/follow",
+    status_code=status.HTTP_200_OK,
+)
+async def get_business_follow(
+    business_id: UUID,
+    user_id=Depends(get_current_user_id),
+    session=Depends(get_session),
+):
+    if session is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    row = session.execute(
+        text(
+            "SELECT 1 FROM business_follows WHERE follower_user_id = :uid AND business_id = :biz LIMIT 1"
+        ),
+        {"uid": str(user_id), "biz": str(business_id)},
+    ).first()
+    return {"following": row is not None}
 
 
 @router.put(
@@ -283,11 +397,40 @@ async def put_listing_share_alias(
         "price": None,
     }
     try:
-        upsert_shared_link_listing_approved(session, body.url.strip(), draft_like)
+        upsert_shared_link_listing_approved(session, body.url.strip(), draft_like, status="pending")
         session.commit()
     except Exception:
         session.rollback()
         raise
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete(
+    "/listings/{community_event_id}/share-alias",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_listing_share_alias(
+    community_event_id: UUID,
+    url: str = Query(..., min_length=8, max_length=4096),
+    user_id=Depends(get_current_user_id),
+    session=Depends(get_session),
+):
+    if session is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    _assert_community_listing_owner(session, community_event_id, user_id)
+    norm = normalize_shared_url(url.strip())
+    result = session.execute(
+        text(
+            """
+            DELETE FROM community_event_share_aliases
+            WHERE normalized_url = :u AND community_event_id = :ce
+            """
+        ),
+        {"u": norm, "ce": str(community_event_id)},
+    )
+    session.commit()
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Share alias not found")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -432,15 +575,14 @@ async def listing_carousel(community_event_id: UUID, session=Depends(get_session
 
 @router.post("/event-videos", status_code=status.HTTP_201_CREATED)
 async def register_event_video(
-    community_event_id: UUID = Query(...),
-    storage_uri: str = Query(..., min_length=8, max_length=4096),
+    body: RegisterEventVideoRequest,
     user_id=Depends(get_current_user_id),
     session=Depends(get_session),
 ):
     """Register a video URI for moderation (portal/upload pipeline)."""
     if session is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
-    _assert_community_listing_owner(session, community_event_id, user_id)
+    _assert_community_listing_owner(session, body.community_event_id, user_id)
     vid = uuid4()
     now = datetime.now(timezone.utc)
     session.execute(
@@ -450,7 +592,7 @@ async def register_event_video(
             VALUES (:id, :ce, :uri, 'pending', :now)
             """
         ),
-        {"id": vid, "ce": str(community_event_id), "uri": storage_uri.strip(), "now": now},
+        {"id": vid, "ce": str(body.community_event_id), "uri": body.storage_uri.strip(), "now": now},
     )
     session.commit()
     return {"video_id": str(vid), "moderation_status": "pending"}
@@ -486,8 +628,11 @@ async def admin_patch_event_video_moderation(
 
 
 @router.post("/billing/checkout-session", status_code=status.HTTP_200_OK, response_model=BillingCheckoutStubResponse)
-async def billing_checkout_stub(provider: str = Query(default="stripe", pattern="^(stripe|mpesa_stub)$")):
+async def billing_checkout_stub(
+    provider: str = Query(default="stripe", pattern="^(stripe|mpesa_stub)$"),
+    user_id=Depends(get_current_user_id),
+):
     return BillingCheckoutStubResponse(
-        checkout_url=f"https://checkout.example.com/eventflow/{provider}/placeholder-session",
+        checkout_url=f"https://checkout.example.com/eventflow/{provider}/session?user={user_id}",
         provider="stripe" if provider == "stripe" else "mpesa_stub",
     )

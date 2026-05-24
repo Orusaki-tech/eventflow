@@ -46,6 +46,15 @@ def main() -> None:
                 return
             venue = evt.venue
             origin_loc = uow.user_locations.get(user_id, "home")
+            if origin_loc is None:
+                from sqlalchemy import text
+
+                row = uow.session.execute(
+                    text("SELECT user_id, label FROM user_locations WHERE user_id = :uid ORDER BY created_at DESC LIMIT 1"),
+                    {"uid": str(user_id)},
+                ).first()
+                if row is not None:
+                    origin_loc = uow.user_locations.get(user_id, row[1])
             origin = origin_loc.address if origin_loc else venue
 
         now = datetime.now(timezone.utc)

@@ -147,8 +147,11 @@ def _fetch_image_bytes(
         raise InvariantViolation("URL host is not allowed")
 
     headers: dict[str, str] = {
-        "User-Agent": "EventFlow/1.0",
-        "Accept": "image/*",
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+        ),
+        "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
     }
     if extra_headers:
         for k, v in extra_headers.items():
@@ -332,8 +335,9 @@ def get_thumbnail(
                 raise
             except InvariantViolation as e:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-            except Exception:
-                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Thumbnail extraction failed")
+            except Exception as e:
+                _log_media.warning("get_thumbnail instagram fallback failed: %s", e, exc_info=True)
+                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Thumbnail extraction failed: {type(e).__name__}")
 
         if host and (host == "linkedin.com" or host.endswith(".linkedin.com")):
             try:
@@ -360,8 +364,9 @@ def get_thumbnail(
                 raise
             except InvariantViolation as e:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-            except Exception:
-                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Thumbnail extraction failed")
+            except Exception as e:
+                _log_media.warning("get_thumbnail linkedin fallback failed: %s", e, exc_info=True)
+                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Thumbnail extraction failed: {type(e).__name__}")
 
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Thumbnail extraction failed")
 
@@ -375,8 +380,9 @@ def get_thumbnail(
         )
     except InvariantViolation as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Thumbnail fetch failed")
+    except Exception as e:
+        _log_media.warning("get_thumbnail fetch failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Thumbnail fetch failed: {type(e).__name__}")
 
     return Response(
         content=image_bytes,

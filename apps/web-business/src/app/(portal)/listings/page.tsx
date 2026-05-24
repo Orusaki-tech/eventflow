@@ -1,6 +1,6 @@
 "use client";
 
-import { IconPlus } from "@tabler/icons-react";
+import { IconLink, IconPlus } from "@tabler/icons-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePortalAuth } from "@/components/portal/portal-auth-context";
@@ -50,6 +50,10 @@ export default function ListingsIndexPage() {
             <Link href="/listings/new" className="portal-act" style={{ textDecoration: "none" }}>
               <IconPlus size={12} stroke={2} />
               Publish listing
+            </Link>
+            <Link href="/listings/import" className="portal-act" style={{ textDecoration: "none" }}>
+              <IconLink size={12} stroke={2} />
+              Import from URL
             </Link>
           </div>
           {err ? <p className="portal-error">{err}</p> : null}

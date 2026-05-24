@@ -860,6 +860,59 @@ export async function getBusiness(
   });
 }
 
+export type BusinessFollowingRow = {
+  business_id: string;
+  name: string;
+  whatsapp_e164: string | null;
+  verified: boolean;
+  created_at: string;
+};
+
+export async function getFollowBusiness(
+  baseUrl: string,
+  token: string | null,
+  businessId: string
+): Promise<{ following: boolean }> {
+  return request(baseUrl, `/api/v1/businesses/${encodeURIComponent(businessId)}/follow`, token, { method: "GET" });
+}
+
+export async function postFollowBusiness(
+  baseUrl: string,
+  token: string | null,
+  businessId: string
+): Promise<{ ok: boolean }> {
+  return request(baseUrl, `/api/v1/businesses/${encodeURIComponent(businessId)}/follow`, token, { method: "POST" });
+}
+
+export async function deleteFollowBusiness(
+  baseUrl: string,
+  token: string | null,
+  businessId: string
+): Promise<void> {
+  await request<void>(baseUrl, `/api/v1/businesses/${encodeURIComponent(businessId)}/follow`, token, { method: "DELETE" });
+}
+
+export async function listFollowedBusinesses(
+  baseUrl: string,
+  token: string | null
+): Promise<BusinessFollowingRow[]> {
+  return request<BusinessFollowingRow[]>(baseUrl, "/api/v1/businesses/following", token, { method: "GET" });
+}
+
+export async function patchBusiness(
+  baseUrl: string,
+  token: string | null,
+  businessId: string,
+  body: { name?: string; whatsapp_e164?: string | null }
+): Promise<BusinessResponse> {
+  return request<BusinessResponse>(
+    baseUrl,
+    `/api/v1/businesses/${encodeURIComponent(businessId)}`,
+    token,
+    { method: "PATCH", json: body }
+  );
+}
+
 export async function postBillingCheckoutStub(
   baseUrl: string,
   token: string | null,

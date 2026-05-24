@@ -102,8 +102,8 @@ def _gemini_model_label() -> str:
     return getattr(get_settings(), "gemini_model", "unknown")
 
 
-def upsert_shared_link_listing_approved(session, url: str, draft_out: dict) -> None:
-    """Persist moderation-friendly listing metadata for URL ingestions (approved path)."""
+def upsert_shared_link_listing_approved(session, url: str, draft_out: dict, status: str = "approved") -> None:
+    """Persist moderation-friendly listing metadata for URL ingestions."""
     norm = normalize_shared_url(url)
     st = draft_out.get("start_time")
     payload = {
@@ -117,14 +117,14 @@ def upsert_shared_link_listing_approved(session, url: str, draft_out: dict) -> N
         text(
             """
             INSERT INTO shared_link_listings (normalized_url, status, cached_payload, created_at, updated_at)
-            VALUES (:u, 'approved', CAST(:p AS jsonb), NOW(), NOW())
+            VALUES (:u, :st, CAST(:p AS jsonb), NOW(), NOW())
             ON CONFLICT (normalized_url) DO UPDATE SET
               cached_payload = CASE WHEN shared_link_listings.status = 'rejected' THEN shared_link_listings.cached_payload ELSE CAST(:p AS jsonb) END,
-              status = CASE WHEN shared_link_listings.status = 'rejected' THEN shared_link_listings.status ELSE 'approved' END,
+              status = CASE WHEN shared_link_listings.status = 'rejected' THEN shared_link_listings.status ELSE :st END,
               updated_at = NOW()
             """
         ),
-        {"u": norm, "p": json.dumps(payload)},
+        {"u": norm, "p": json.dumps(payload), "st": status},
     )
 
 

@@ -4,10 +4,13 @@ import { ActivityIndicator, Alert, Dimensions, Image, Linking, Pressable, Scroll
 import { useFocusEffect } from "@react-navigation/native";
 import {
   CarouselSlide,
+  deleteFollowBusiness,
   deleteFollowUser,
   EventflowApiError,
+  getFollowBusiness,
   getListingCarousel,
   postBillingCheckoutStub,
+  postFollowBusiness,
   postFollowUser,
   postListingAnalytics,
 } from "../api/eventflow";
@@ -60,6 +63,8 @@ export function CommunityListingDetailScreen({ route }: Props) {
   const [carouselError, setCarouselError] = useState<string | null>(null);
   const [following, setFollowing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
+  const [bizFollowing, setBizFollowing] = useState(false);
+  const [bizFollowBusy, setBizFollowBusy] = useState(false);
   const [billingBusy, setBillingBusy] = useState(false);
 
   useFocusEffect(
@@ -89,8 +94,14 @@ export function CommunityListingDetailScreen({ route }: Props) {
       setCarouselLoading(true);
       setCarouselError(null);
       try {
-        const res = await getListingCarousel(apiBaseUrl, accessToken, communityEventId);
-        if (!cancelled) setSlides(res.slides ?? []);
+        const [res, followRes] = await Promise.all([
+          getListingCarousel(apiBaseUrl, accessToken, communityEventId),
+          business_id && accessToken ? getFollowBusiness(apiBaseUrl, accessToken, business_id) : Promise.resolve(null),
+        ]);
+        if (!cancelled) {
+          setSlides(res.slides ?? []);
+          if (followRes) setBizFollowing(followRes.following);
+        }
       } catch (e: unknown) {
         if (!cancelled) {
           setCarouselError(e instanceof Error ? e.message : String(e));
@@ -103,7 +114,7 @@ export function CommunityListingDetailScreen({ route }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [accessToken, apiBaseUrl, communityEventId]);
+  }, [accessToken, apiBaseUrl, communityEventId, business_id]);
 
   const canFollow =
     Boolean(accessToken && organizerUserId && authUserId && organizerUserId.toLowerCase() !== authUserId.toLowerCase());
@@ -125,6 +136,29 @@ export function CommunityListingDetailScreen({ route }: Props) {
         Alert.alert("Follow failed", e instanceof Error ? e.message : String(e));
       } finally {
         setFollowBusy(false);
+      }
+    })();
+  };
+
+  const canFollowBiz = Boolean(accessToken && business_id);
+
+  const toggleFollowBiz = () => {
+    if (!accessToken || !business_id) return;
+    setBizFollowBusy(true);
+    void (async () => {
+      try {
+        if (!bizFollowing) {
+          await postFollowBusiness(apiBaseUrl, accessToken, business_id);
+          setBizFollowing(true);
+        } else {
+          await deleteFollowBusiness(apiBaseUrl, accessToken, business_id);
+          setBizFollowing(false);
+        }
+      } catch (e: unknown) {
+        if (e instanceof EventflowApiError && e.status === 401) await refreshSession();
+        Alert.alert("Follow failed", e instanceof Error ? e.message : String(e));
+      } finally {
+        setBizFollowBusy(false);
       }
     })();
   };
@@ -236,6 +270,16 @@ export function CommunityListingDetailScreen({ route }: Props) {
         />
       ) : organizerUserId && authUserId && organizerUserId.toLowerCase() === authUserId.toLowerCase() ? (
         <AppText tone="tertiary">This is your listing.</AppText>
+      ) : null}
+
+      {canFollowBiz ? (
+        <Button
+          label={bizFollowing ? "Following business" : "Follow business"}
+          variant={bizFollowing ? "filled" : "outline"}
+          loading={bizFollowBusy}
+          onPress={toggleFollowBiz}
+          fullWidth
+        />
       ) : null}
 
       {whatsapp_e164?.trim() && whatsAppMeUrlFromE164(whatsapp_e164.trim()) ? (

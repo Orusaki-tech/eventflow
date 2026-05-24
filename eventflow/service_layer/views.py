@@ -424,6 +424,37 @@ def list_feed_home(*, user_id: UUID, session: Any | None, limit: int = 50) -> Li
     for r in followed:
         merged[str(r.id)] = dict(r._mapping)
 
+    business_followed = session.execute(
+        text(
+            """
+            SELECT e.id, e.title, e.start_time, e.venue, e.user_id, e.sponsored_rank,
+                   e.poster_image_uri,
+                   bl.business_id,
+                   b.whatsapp_e164,
+                   v.hero_video_uri
+            FROM community_events e
+            INNER JOIN business_listing_attachments bl ON bl.community_event_id = e.id
+            INNER JOIN business_follows bf ON bf.business_id = bl.business_id AND bf.follower_user_id = :uid
+            LEFT JOIN businesses b ON b.id = bl.business_id
+            LEFT JOIN LATERAL (
+              SELECT ev.storage_uri AS hero_video_uri
+              FROM event_videos ev
+              WHERE ev.community_event_id = e.id AND ev.moderation_status = 'approved'
+              ORDER BY ev.created_at ASC
+              LIMIT 1
+            ) v ON TRUE
+            WHERE e.start_time > NOW()
+            ORDER BY e.start_time ASC
+            LIMIT :lim
+            """
+        ),
+        {"uid": str(user_id), "lim": int(limit)},
+    )
+    for r in business_followed:
+        k = str(r.id)
+        if k not in merged:
+            merged[k] = dict(r._mapping)
+
     trending = session.execute(
         text(
             """
