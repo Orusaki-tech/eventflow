@@ -273,6 +273,7 @@ async def share_url(
 ):
     norm = normalize_shared_url(body.url)
     if session is not None:
+        # Query returns (status, cached_payload) — both checks below depend on this shape.
         row = session.execute(
             text("SELECT status, cached_payload FROM shared_link_listings WHERE normalized_url = :u LIMIT 1"),
             {"u": norm},
@@ -283,7 +284,8 @@ async def share_url(
                 detail="This shared link was rejected. Enter event details manually.",
             )
 
-        # Admin-approved link — use cached_payload directly, skip model.
+        # Admin-approved link — use cached_payload (row[1]) directly, skip model.
+        # Note: row[0]=status, row[1]=cached_payload — see query above.
         if row is not None and row[0] == "approved" and row[1] is not None:
             _log.info(
                 "share_url_parse admin_approved url_key=%s",

@@ -9,6 +9,23 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 
 from eventflow.entrypoints.api.business_verified_updates import set_business_verified
+
+
+_ALLOWED_FILTER_FIELDS = frozenset(["normalized_url ILIKE :pat", "status = :status"])
+"""Controlled set of WHERE clause fragments — only these may appear in f-string SQL below."""
+
+
+def _build_where(filters: list[str]) -> tuple[str, bool]:
+    """Join filter fragments with AND.  Returns (sql_snippet, is_safe).
+
+    Each fragment must be in _ALLOWED_FILTER_FIELDS.  Values use :param bindings.
+    """
+    for f in filters:
+        if f not in _ALLOWED_FILTER_FIELDS:
+            return ("", False)
+    if not filters:
+        return ("", True)
+    return ("WHERE " + " AND ".join(filters), True)
 from eventflow.entrypoints.api.schemas import (
     AdminBusinessVerifiedPatchRequest,
     AdminConsoleBusinessListResponse,
@@ -26,7 +43,7 @@ from eventflow.entrypoints.api.schemas import (
 )
 from eventflow.entrypoints.dependencies import get_session, require_admin_user
 
-from eventflow.adapters.share_parse_cache import normalize_shared_url
+from eventflow.adapters import normalize_shared_url
 
 router = APIRouter(tags=["Admin console"], prefix="/admin/console")
 
@@ -248,18 +265,18 @@ async def admin_console_shared_link_listings(
     if session is None:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
 
-    where_clauses: list[str] = []
+    filter_frags: list[str] = []
     params: dict = {"limit": limit, "offset": offset}
     if q and q.strip():
         pat = f"%{q.strip()}%"
-        where_clauses.append("normalized_url ILIKE :pat")
+        filter_frags.append("normalized_url ILIKE :pat")
         params["pat"] = pat
     if status:
-        where_clauses.append("status = :status")
+        filter_frags.append("status = :status")
         params["status"] = status
 
-    # where_clauses built from controlled fragments + parameterized :params only — safe from injection.
-    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+    where_sql, safe = _build_where(filter_frags)
+    assert safe, f"Unexpected filter fragment in {filter_frags}"
 
     rows = session.execute(
         text(
