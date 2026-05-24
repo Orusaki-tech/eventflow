@@ -6,9 +6,15 @@ import {
   IconLink,
   IconLogout,
   IconPhoto,
+  IconSettings,
   IconShieldLock,
   IconCalendarEvent,
   IconBuildingStore,
+  IconTicket,
+  IconAlertTriangle,
+  IconHandStop,
+  IconVideo,
+  IconCoin,
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -25,6 +31,12 @@ function formatBreadcrumb(pathname: string): { muted: string; rest: string } {
   if (pathname === "/listings") return { muted: "Directory", rest: "Community listings" };
   if (pathname === "/posters") return { muted: "Media", rest: "Poster assets" };
   if (pathname === "/shared-links") return { muted: "Moderation", rest: "Shared links" };
+  if (pathname === "/orders") return { muted: "Ticketing", rest: "Orders" };
+  if (pathname === "/claims") return { muted: "Ticketing", rest: "Claims" };
+  if (pathname === "/payouts") return { muted: "Finance", rest: "Payouts" };
+  if (pathname.startsWith("/claims/")) return { muted: "Ticketing", rest: "Claim detail" };
+  if (pathname === "/video-moderation") return { muted: "Moderation", rest: "Feed videos" };
+  if (pathname === "/platform-settings") return { muted: "System", rest: "Platform settings" };
   return { muted: "Admin", rest: "Console" };
 }
 
@@ -92,8 +104,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   const crumb = useMemo(() => formatBreadcrumb(pathname), [pathname]);
 
-  const navCls = (href: string) => {
-    const active = pathname === href;
+  const navCls = (href: string, activePrefixes?: string[]) => {
+    const active =
+      pathname === href ||
+      (activePrefixes?.some((p) => pathname.startsWith(p)) ?? false);
     return `portal-nav-item ${active ? "on" : ""}`;
   };
 
@@ -189,6 +203,29 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <Link href="/shared-links" className={navCls("/shared-links")}>
               <IconLink size={15} stroke={1.75} />
               Shared links
+            </Link>
+            <Link href="/video-moderation" className={navCls("/video-moderation")}>
+              <IconVideo size={15} stroke={1.75} />
+              Videos
+            </Link>
+            <div className="portal-nav-grp">Ticketing</div>
+            <Link href="/orders" className={navCls("/orders")}>
+              <IconTicket size={15} stroke={1.75} />
+              Orders
+            </Link>
+            <Link href="/claims" className={navCls("/claims", ["/claims/"])}>
+              <IconAlertTriangle size={15} stroke={1.75} />
+              Claims
+            </Link>
+            <div className="portal-nav-grp">Finance</div>
+            <Link href="/payouts" className={navCls("/payouts")}>
+              <IconHandStop size={15} stroke={1.75} />
+              Payouts
+            </Link>
+            <div className="portal-nav-grp">System</div>
+            <Link href="/platform-settings" className={navCls("/platform-settings")}>
+              <IconCoin size={15} stroke={1.75} />
+              Platform settings
             </Link>
           </nav>
           <div className="portal-sidebar-foot">

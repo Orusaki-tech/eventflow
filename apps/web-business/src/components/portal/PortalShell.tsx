@@ -2,14 +2,19 @@
 
 import {
   IconBell,
+  IconBox,
   IconBuildingStore,
   IconCalendar,
   IconCalendarEvent,
+  IconCoins,
   IconCreditCard,
   IconDotsVertical,
+  IconHandStop,
   IconLayoutDashboard,
   IconLogout,
   IconSettings,
+  IconUsers,
+  IconVideo,
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -25,6 +30,11 @@ function formatBreadcrumb(pathname: string): { muted: string; rest: string } {
   if (pathname === "/businesses") return { muted: "Businesses", rest: "Your businesses" };
   if (pathname === "/billing") return { muted: "Billing", rest: "Checkout" };
   if (pathname === "/settings") return { muted: "Settings", rest: "Environment & account" };
+  if (pathname === "/tap-packs") return { muted: "Monetization", rest: "Tap packs" };
+  if (pathname === "/feed") return { muted: "Monetization", rest: "Feed videos" };
+  if (pathname === "/products") return { muted: "Monetization", rest: "Products" };
+  if (pathname === "/affiliate-requests") return { muted: "Monetization", rest: "Affiliate requests" };
+  if (pathname === "/payouts") return { muted: "Monetization", rest: "Payouts" };
   return { muted: "EventFlow", rest: "Studio" };
 }
 
@@ -140,6 +150,27 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
             <Link href="/billing" className={navCls("/billing")}>
               <IconCreditCard size={15} stroke={1.75} />
               Billing
+            </Link>
+            <div className="portal-nav-grp">Monetization</div>
+            <Link href="/tap-packs" className={navCls("/tap-packs")}>
+              <IconCoins size={15} stroke={1.75} />
+              Tap packs
+            </Link>
+            <Link href="/feed" className={navCls("/feed")}>
+              <IconVideo size={15} stroke={1.75} />
+              Feed videos
+            </Link>
+            <Link href="/products" className={navCls("/products")}>
+              <IconBox size={15} stroke={1.75} />
+              Products
+            </Link>
+            <Link href="/affiliate-requests" className={navCls("/affiliate-requests")}>
+              <IconUsers size={15} stroke={1.75} />
+              Affiliates
+            </Link>
+            <Link href="/payouts" className={navCls("/payouts")}>
+              <IconHandStop size={15} stroke={1.75} />
+              Payouts
             </Link>
             <div className="portal-nav-grp">System</div>
             <Link href="/settings" className={navCls("/settings")}>

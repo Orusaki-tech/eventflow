@@ -926,3 +926,204 @@ export async function postBillingCheckoutStub(
     { method: "POST" }
   );
 }
+
+// ─── TICKETING v3 (mobile / user-facing) ─────────────────────────────────
+
+export type TicketTypeRow = {
+  ticket_type_id: string;
+  name: string;
+  description: string | null;
+  price_minor_units: number;
+  currency: string;
+  quantity_available: number | null;
+  quantity_sold: number;
+  sale_start: string | null;
+  sale_end: string | null;
+  refundable_until: string | null;
+  is_active: boolean;
+  sort_order: number;
+};
+
+export async function listTicketTypes(
+  baseUrl: string,
+  token: string | null,
+  communityEventId: string
+): Promise<TicketTypeRow[]> {
+  return request<TicketTypeRow[]>(
+    baseUrl,
+    `/api/v1/listings/${encodeURIComponent(communityEventId)}/ticket-types`,
+    token,
+    { method: "GET" }
+  );
+}
+
+export type PurchaseRequest = {
+  community_event_id: string;
+  items: { ticket_type_id: string; quantity: number }[];
+  payment_provider?: string;
+};
+
+export type PurchaseResponse = {
+  order_id: string;
+  receipt_number: string;
+  total_minor_units: number;
+  platform_fee_minor_units: number;
+  payment_provider: string;
+  ticket_codes: string[];
+  points_earned: number;
+};
+
+export async function purchaseTickets(
+  baseUrl: string,
+  token: string | null,
+  body: PurchaseRequest
+): Promise<PurchaseResponse> {
+  return request<PurchaseResponse>(baseUrl, "/api/v1/tickets/purchase", token, {
+    method: "POST",
+    json: body,
+  });
+}
+
+export type OrderRow = {
+  order_id: string;
+  community_event_id: string;
+  event_title: string;
+  status: string;
+  type: string;
+  total_minor_units: number;
+  platform_fee_minor_units: number;
+  payment_provider: string | null;
+  receipt_number: string | null;
+  points_earned: number;
+  paid_at: string | null;
+  created_at: string;
+  tickets: { ticket_id: string; short_code: string; ticket_type_name: string; status: string; checked_in_at: string | null }[];
+};
+
+export async function listMyOrders(baseUrl: string, token: string | null): Promise<OrderRow[]> {
+  return request<OrderRow[]>(baseUrl, "/api/v1/tickets/orders", token, { method: "GET" });
+}
+
+export async function getOrder(baseUrl: string, token: string | null, orderId: string): Promise<OrderRow> {
+  return request<OrderRow>(baseUrl, `/api/v1/tickets/orders/${encodeURIComponent(orderId)}`, token, { method: "GET" });
+}
+
+export type FeedVideoRow = {
+  video_id: string;
+  title: string;
+  video_uri: string | null;
+  thumbnail_uri: string | null;
+  video_type: string;
+  moderation_status: string;
+  views: number;
+  whatsapp_taps: number;
+  created_at: string | null;
+  business_name: string | null;
+  event_title: string | null;
+  community_event_id: string | null;
+};
+
+export async function getDiscoveryFeedV3(baseUrl: string, token: string | null): Promise<FeedVideoRow[]> {
+  return request<FeedVideoRow[]>(baseUrl, "/api/v1/feed/discover", token, { method: "GET" });
+}
+
+export async function logFeedWatch(baseUrl: string, token: string | null, videoId: string): Promise<{ points_earned: number }> {
+  return request<{ points_earned: number }>(
+    baseUrl,
+    `/api/v1/feed/watch?video_id=${encodeURIComponent(videoId)}`,
+    token,
+    { method: "POST" }
+  );
+}
+
+export type WatchQuotaResponse = {
+  is_premium: boolean;
+  videos_watched_today: number;
+  videos_remaining: number;
+  daily_limit: number;
+  premium_price_minor: number;
+};
+
+export async function getWatchQuota(baseUrl: string, token: string | null): Promise<WatchQuotaResponse> {
+  return request<WatchQuotaResponse>(baseUrl, "/api/v1/feed/status", token, { method: "GET" });
+}
+
+export type PointsResponse = {
+  balance: number;
+  lifetime_earned: number;
+  lifetime_redeemed: number;
+  last_activity: string | null;
+  discount_code: string | null;
+  discount_minor: number | null;
+};
+
+export async function getPoints(baseUrl: string, token: string | null): Promise<PointsResponse> {
+  return request<PointsResponse>(baseUrl, "/api/v1/points", token, { method: "GET" });
+}
+
+export async function redeemPoints(baseUrl: string, token: string | null, points: number): Promise<PointsResponse> {
+  return request<PointsResponse>(baseUrl, "/api/v1/points/redeem", token, {
+    method: "POST",
+    json: { points },
+  });
+}
+
+export type SubscriptionResponse = {
+  subscription_id: string;
+  plan: string;
+  status: string;
+  current_period_end: string | null;
+  created_at: string | null;
+};
+
+export async function getSubscription(baseUrl: string, token: string | null): Promise<SubscriptionResponse | null> {
+  return request<SubscriptionResponse | null>(baseUrl, "/api/v1/subscriptions", token, { method: "GET" });
+}
+
+export async function purchaseSubscription(
+  baseUrl: string,
+  token: string | null
+): Promise<SubscriptionResponse> {
+  return request<SubscriptionResponse>(baseUrl, "/api/v1/subscriptions/create", token, {
+    method: "POST",
+  });
+}
+
+export type ProductRow = {
+  product_id: string;
+  title: string;
+  description: string | null;
+  price_minor_units: number;
+  image_uri: string | null;
+  seller_business_id: string;
+  seller_name: string;
+};
+
+export async function listEventProducts(baseUrl: string, token: string | null, communityEventId: string): Promise<ProductRow[]> {
+  return request<ProductRow[]>(
+    baseUrl,
+    `/api/v1/events/${encodeURIComponent(communityEventId)}/products`,
+    token,
+    { method: "GET" }
+  );
+}
+
+export type ClaimResponse = {
+  claim_id: string;
+  status: string;
+  admin_notes: string | null;
+  created_at: string;
+  resolved_at: string | null;
+};
+
+export async function createClaim(
+  baseUrl: string,
+  token: string | null,
+  body: { order_id: string; claim_type: string; reason?: string }
+): Promise<ClaimResponse> {
+  return request<ClaimResponse>(baseUrl, "/api/v1/tickets/claims", token, { method: "POST", json: body });
+}
+
+export async function listMyClaims(baseUrl: string, token: string | null): Promise<ClaimResponse[]> {
+  return request<ClaimResponse[]>(baseUrl, "/api/v1/tickets/claims", token, { method: "GET" });
+}

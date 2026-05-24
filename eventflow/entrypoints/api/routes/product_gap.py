@@ -60,10 +60,11 @@ def _assert_business_owner(session, business_id: UUID, user_id: UUID) -> None:
 @router.get("/feed/home", status_code=status.HTTP_200_OK)
 async def feed_home(
     limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0, le=1000),
     user_id=Depends(get_current_user_id),
     session=Depends(get_session),
 ):
-    return views.list_feed_home(user_id=user_id, session=session, limit=limit)
+    return views.list_feed_home(user_id=user_id, session=session, limit=limit, offset=offset)
 
 
 @router.get("/businesses", status_code=status.HTTP_200_OK, response_model=list[BusinessResponse])

@@ -1,6 +1,6 @@
 "use client";
 
-import { IconPhoto, IconTrash, IconVideo, IconBrandWhatsapp } from "@tabler/icons-react";
+import { IconPhoto, IconTrash, IconVideo, IconBrandWhatsapp, IconTicket, IconPlus, IconCheck, IconX } from "@tabler/icons-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -13,8 +13,12 @@ import {
   listBusinesses,
   putListingShareAlias,
   registerEventVideo,
+  listTicketTypes,
+  bulkSetTicketTypes,
+  getEventSales,
   type BusinessRow,
   type CommunityMineDetail,
+  type TicketTypeRow,
 } from "@/lib/eventflow-api";
 
 function formatStart(iso: string): string {
@@ -39,16 +43,34 @@ export default function ListingDetailPage() {
   const [videoUri, setVideoUri] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [ticketTypes, setTicketTypes] = useState<TicketTypeRow[]>([]);
+  const [salesData, setSalesData] = useState<{ name: string; price_minor_units: number; sold: number; active: number; checked_in: number }[]>([]);
+  const [ttEditor, setTtEditor] = useState<{ ticket_type_id?: string; name: string; price_minor_units: string; quantity_available: string; description: string }[]>([]);
 
   const reload = useCallback(async () => {
     if (!id) return;
-    const [d, biz] = await Promise.all([
+    const [d, biz, tt, sales] = await Promise.all([
       getMyCommunityEvent(token, id),
       listBusinesses(token),
+      listTicketTypes(token, id).catch(() => [] as TicketTypeRow[]),
+      getEventSales(token, id).catch(() => []),
     ]);
     setDetail(d);
     setMyBiz(biz);
     setAttachBizId(d.business_id ?? "");
+    setTicketTypes(tt);
+    setSalesData(sales);
+    if (tt.length > 0) {
+      setTtEditor(tt.map(t => ({
+        ticket_type_id: t.ticket_type_id,
+        name: t.name,
+        price_minor_units: String(t.price_minor_units),
+        quantity_available: t.quantity_available != null ? String(t.quantity_available) : "",
+        description: t.description ?? "",
+      })));
+    } else if (ttEditor.length === 0) {
+      setTtEditor([{ name: "", price_minor_units: "", quantity_available: "", description: "" }]);
+    }
   }, [token, id]);
 
   useEffect(() => {
@@ -57,6 +79,7 @@ export default function ListingDetailPage() {
       if (!id) return;
       try {
         await reload();
+        if (cancelled) return;
       } catch (e: unknown) {
         if (!cancelled) setLoadErr(e instanceof Error ? e.message : String(e));
       }
@@ -345,6 +368,99 @@ export default function ListingDetailPage() {
       <div className="portal-card">
         <div className="portal-card-hd">
           <div className="portal-card-num">05</div>
+          <div className="portal-card-title">Ticket types</div>
+          <span className="portal-tag portal-tag-success">{ticketTypes.length} types</span>
+        </div>
+        <div className="portal-card-bd">
+          {salesData.length > 0 ? (
+            <div style={{ marginBottom: 16, overflowX: "auto" }}>
+              <table className="portal-table" style={{ fontSize: 12 }}>
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Price</th>
+                    <th>Sold</th>
+                    <th>Active</th>
+                    <th>Checked in</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {salesData.map((s, i) => (
+                    <tr key={i}>
+                      <td>{s.name}</td>
+                      <td>KES {(s.price_minor_units / 100).toFixed(2)}</td>
+                      <td>{s.sold}</td>
+                      <td>{s.active}</td>
+                      <td>{s.checked_in}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+
+          {ticketTypes.length > 0 ? (
+            <p style={{ fontSize: 11, color: "#888", marginBottom: 12 }}>
+              Saved ticket types — modify below and save.
+            </p>
+          ) : null}
+
+          {ttEditor.map((row, i) => (
+            <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+              <div style={{ flex: "1 1 150px", minWidth: 120 }}>
+                <div className="portal-lbl" style={{ fontSize: 10 }}>Name</div>
+                <input className="portal-inp" type="text" placeholder="e.g. General" value={row.name}
+                  onChange={(e) => setTtEditor(ttEditor.map((r, j) => j === i ? { ...r, name: e.target.value } : r))} />
+              </div>
+              <div style={{ flex: "0 1 100px", minWidth: 80 }}>
+                <div className="portal-lbl" style={{ fontSize: 10 }}>Price (cents)</div>
+                <input className="portal-inp" type="number" placeholder="150000" value={row.price_minor_units}
+                  onChange={(e) => setTtEditor(ttEditor.map((r, j) => j === i ? { ...r, price_minor_units: e.target.value } : r))} />
+              </div>
+              <div style={{ flex: "0 1 80px", minWidth: 60 }}>
+                <div className="portal-lbl" style={{ fontSize: 10 }}>Qty (blank=∞)</div>
+                <input className="portal-inp" type="number" placeholder="∞" value={row.quantity_available}
+                  onChange={(e) => setTtEditor(ttEditor.map((r, j) => j === i ? { ...r, quantity_available: e.target.value } : r))} />
+              </div>
+              <div style={{ flex: "1 1 150px", minWidth: 120 }}>
+                <div className="portal-lbl" style={{ fontSize: 10 }}>Description</div>
+                <input className="portal-inp" type="text" placeholder="Optional" value={row.description}
+                  onChange={(e) => setTtEditor(ttEditor.map((r, j) => j === i ? { ...r, description: e.target.value } : r))} />
+              </div>
+              {ttEditor.length > 1 ? (
+                <button type="button" className="portal-icon-btn" title="Remove" aria-label="Remove"
+                  onClick={() => setTtEditor(ttEditor.filter((_, j) => j !== i))}>
+                  <IconX size={12} />
+                </button>
+              ) : null}
+            </div>
+          ))}
+          <div className="portal-acts" style={{ marginTop: 8 }}>
+            <button type="button" className="portal-act"
+              onClick={() => setTtEditor([...ttEditor, { name: "", price_minor_units: "", quantity_available: "", description: "" }])}>
+              <IconPlus size={12} /> Add type
+            </button>
+            <button type="button" className="portal-act"
+              onClick={() => {
+                const types = ttEditor.filter(t => t.name.trim() && t.price_minor_units.trim());
+                void run(async () => {
+                  await bulkSetTicketTypes(token, id, types.map(t => ({
+                    name: t.name.trim(),
+                    price_minor_units: parseInt(t.price_minor_units) || 0,
+                    quantity_available: t.quantity_available.trim() ? parseInt(t.quantity_available) || null : null,
+                    description: t.description.trim() || null,
+                  })));
+                });
+              }}>
+              <IconCheck size={12} /> Save ticket types
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="portal-card">
+        <div className="portal-card-hd">
+          <div className="portal-card-num">06</div>
           <div className="portal-card-title">WhatsApp</div>
           <span className="portal-tag portal-tag-info">Contact</span>
         </div>
@@ -371,7 +487,7 @@ export default function ListingDetailPage() {
 
       <div className="portal-card">
         <div className="portal-card-hd">
-          <div className="portal-card-num">06</div>
+          <div className="portal-card-num">07</div>
           <div className="portal-card-title">Carousel</div>
           <span className="portal-tag portal-tag-get">GET</span>
         </div>

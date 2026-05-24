@@ -102,7 +102,7 @@ def _gemini_model_label() -> str:
     return getattr(get_settings(), "gemini_model", "unknown")
 
 
-def upsert_shared_link_listing_approved(session, url: str, draft_out: dict, status: str = "approved") -> None:
+def upsert_shared_link_listing_approved(session, url: str, draft_out: dict, status: str = "approved", source_url: str | None = None) -> None:
     """Persist moderation-friendly listing metadata for URL ingestions."""
     norm = normalize_shared_url(url)
     st = draft_out.get("start_time")
@@ -116,15 +116,15 @@ def upsert_shared_link_listing_approved(session, url: str, draft_out: dict, stat
     session.execute(
         text(
             """
-            INSERT INTO shared_link_listings (normalized_url, status, cached_payload, created_at, updated_at)
-            VALUES (:u, :st, CAST(:p AS jsonb), NOW(), NOW())
+            INSERT INTO shared_link_listings (normalized_url, source_url_raw, status, cached_payload, created_at, updated_at)
+            VALUES (:u, :raw, :st, CAST(:p AS jsonb), NOW(), NOW())
             ON CONFLICT (normalized_url) DO UPDATE SET
-              cached_payload = CASE WHEN shared_link_listings.status = 'rejected' THEN shared_link_listings.cached_payload ELSE CAST(:p AS jsonb) END,
-              status = CASE WHEN shared_link_listings.status = 'rejected' THEN shared_link_listings.status ELSE :st END,
+              cached_payload = CASE WHEN shared_link_listings.status IN ('approved', 'rejected') THEN shared_link_listings.cached_payload ELSE CAST(:p AS jsonb) END,
+              status = CASE WHEN shared_link_listings.status IN ('approved', 'rejected') THEN shared_link_listings.status ELSE :st END,
               updated_at = NOW()
             """
         ),
-        {"u": norm, "p": json.dumps(payload), "st": status},
+        {"u": norm, "raw": source_url or url, "p": json.dumps(payload), "st": status},
     )
 
 
@@ -753,12 +753,13 @@ async def share_poster(
         uow.session.execute(
             text(
                 """
-                INSERT INTO event_sources (id, user_id, draft_id, source_url_raw, source_url_normalized, poster_asset_id, created_at)
-                VALUES (:id, :user_id, :draft_id, :raw, :norm, :poster_asset_id, :created_at)
+                INSERT INTO event_sources (id, user_id, draft_id, source_url_raw, source_url_normalized, poster_asset_id, created_at, updated_at)
+                VALUES (:id, :user_id, :draft_id, :raw, :norm, :poster_asset_id, :created_at, :created_at)
                 ON CONFLICT (user_id, draft_id) DO UPDATE SET
                   source_url_raw = EXCLUDED.source_url_raw,
                   source_url_normalized = EXCLUDED.source_url_normalized,
-                  poster_asset_id = EXCLUDED.poster_asset_id
+                  poster_asset_id = EXCLUDED.poster_asset_id,
+                  updated_at = NOW()
                 """
             ),
             {

@@ -34,12 +34,13 @@ def link_event_source_poster(
     session.execute(
         text(
             """
-            INSERT INTO event_sources (id, user_id, draft_id, source_url_raw, source_url_normalized, poster_asset_id, created_at)
-            VALUES (:id, :user_id, :draft_id, :raw, :norm, :poster_asset_id, :created_at)
+            INSERT INTO event_sources (id, user_id, draft_id, source_url_raw, source_url_normalized, poster_asset_id, created_at, updated_at)
+            VALUES (:id, :user_id, :draft_id, :raw, :norm, :poster_asset_id, :created_at, :created_at)
             ON CONFLICT (user_id, draft_id) DO UPDATE SET
               source_url_raw = EXCLUDED.source_url_raw,
               source_url_normalized = EXCLUDED.source_url_normalized,
-              poster_asset_id = EXCLUDED.poster_asset_id
+              poster_asset_id = EXCLUDED.poster_asset_id,
+              updated_at = NOW()
             """
         ),
         {

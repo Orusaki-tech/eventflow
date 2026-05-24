@@ -38,6 +38,7 @@ from eventflow.entrypoints.api.schemas import (
     AdminConsoleSharedLinkListingListResponse,
     AdminConsoleSharedLinkListingRow,
     AdminConsoleSummaryResponse,
+    AdminConsoleSummaryV3Response,
     AdminSharedLinkListingUpdateRequest,
     BusinessResponse,
 )
@@ -86,6 +87,53 @@ async def admin_console_summary(
         poster_assets=int(pa),
         event_drafts=int(dr),
         distinct_active_user_ids=int(users),
+    )
+
+
+@router.get("/summary-v3", response_model=AdminConsoleSummaryV3Response)
+async def admin_console_summary_v3(
+    _admin: UUID = Depends(require_admin_user),
+    session=Depends(get_session),
+):
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
+
+    biz = session.execute(text("SELECT COUNT(*) FROM businesses")).scalar_one()
+    ce = session.execute(text("SELECT COUNT(*) FROM community_events")).scalar_one()
+    pa = session.execute(text("SELECT COUNT(*) FROM poster_assets")).scalar_one()
+    dr = session.execute(text("SELECT COUNT(*) FROM event_drafts")).scalar_one()
+
+    users = session.execute(
+        text(
+            """
+            SELECT COUNT(*) FROM (
+              SELECT user_id AS uid FROM community_events
+              UNION
+              SELECT user_id FROM event_drafts
+              UNION
+              SELECT owner_user_id FROM businesses
+            ) u
+            """
+        )
+    ).scalar_one()
+
+    total_orders = session.execute(text("SELECT COUNT(*) FROM orders WHERE type = 'ticket'")).scalar_one()
+    total_revenue = session.execute(text("SELECT COALESCE(SUM(total_minor_units),0) FROM orders WHERE status = 'paid' AND type = 'ticket'")).scalar_one()
+    pending_claims = session.execute(text("SELECT COUNT(*) FROM claims WHERE status = 'open'")).scalar_one()
+    pending_payouts = session.execute(text("SELECT COUNT(*) FROM business_payouts WHERE status = 'pending'")).scalar_one()
+    pending_videos = session.execute(text("SELECT COUNT(*) FROM feed_videos WHERE moderation_status = 'pending'")).scalar_one()
+
+    return AdminConsoleSummaryV3Response(
+        businesses=int(biz),
+        community_events=int(ce),
+        poster_assets=int(pa),
+        event_drafts=int(dr),
+        distinct_active_user_ids=int(users),
+        total_orders=int(total_orders),
+        total_revenue_minor=int(total_revenue),
+        pending_claims=int(pending_claims),
+        pending_payouts=int(pending_payouts),
+        pending_videos=int(pending_videos),
     )
 
 
@@ -281,7 +329,7 @@ async def admin_console_shared_link_listings(
     rows = session.execute(
         text(
             f"""
-            SELECT normalized_url, status, cached_payload, created_at, updated_at,
+            SELECT normalized_url, source_url_raw, status, cached_payload, created_at, updated_at,
                    COUNT(*) OVER() AS __total
             FROM shared_link_listings
             {where_sql}
@@ -299,10 +347,11 @@ async def admin_console_shared_link_listings(
     items = [
         AdminConsoleSharedLinkListingRow(
             normalized_url=r[0],
-            status=r[1],
-            cached_payload=r[2],
-            created_at=r[3],
-            updated_at=r[4],
+            source_url_raw=r[1],
+            status=r[2],
+            cached_payload=r[3],
+            created_at=r[4],
+            updated_at=r[5],
         )
         for r in rows
     ]
@@ -321,7 +370,7 @@ async def admin_console_get_shared_link_listing(
     norm = normalize_shared_url(url)
     row = session.execute(
         text(
-            "SELECT normalized_url, status, cached_payload, created_at, updated_at "
+            "SELECT normalized_url, source_url_raw, status, cached_payload, created_at, updated_at "
             "FROM shared_link_listings WHERE normalized_url = :u LIMIT 1"
         ),
         {"u": norm},
@@ -332,10 +381,11 @@ async def admin_console_get_shared_link_listing(
 
     return AdminConsoleSharedLinkListingRow(
         normalized_url=row[0],
-        status=row[1],
-        cached_payload=row[2],
-        created_at=row[3],
-        updated_at=row[4],
+        source_url_raw=row[1],
+        status=row[2],
+        cached_payload=row[3],
+        created_at=row[4],
+        updated_at=row[5],
     )
 
 
@@ -351,7 +401,7 @@ async def admin_console_update_shared_link_listing(
     norm = normalize_shared_url(body.url)
     row = session.execute(
         text(
-            "SELECT normalized_url, status, cached_payload, created_at, updated_at "
+            "SELECT normalized_url, source_url_raw, status, cached_payload, created_at, updated_at "
             "FROM shared_link_listings WHERE normalized_url = :u LIMIT 1"
         ),
         {"u": norm},
@@ -391,7 +441,7 @@ async def admin_console_update_shared_link_listing(
 
     updated = session.execute(
         text(
-            "SELECT normalized_url, status, cached_payload, created_at, updated_at "
+            "SELECT normalized_url, source_url_raw, status, cached_payload, created_at, updated_at "
             "FROM shared_link_listings WHERE normalized_url = :u LIMIT 1"
         ),
         {"u": norm},
@@ -399,8 +449,9 @@ async def admin_console_update_shared_link_listing(
 
     return AdminConsoleSharedLinkListingRow(
         normalized_url=updated[0],
-        status=updated[1],
-        cached_payload=updated[2],
-        created_at=updated[3],
-        updated_at=updated[4],
+        source_url_raw=updated[1],
+        status=updated[2],
+        cached_payload=updated[3],
+        created_at=updated[4],
+        updated_at=updated[5],
     )

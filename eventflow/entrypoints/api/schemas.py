@@ -465,6 +465,14 @@ class AdminConsoleSummaryResponse(BaseModel):
     )
 
 
+class AdminConsoleSummaryV3Response(AdminConsoleSummaryResponse):
+    total_orders: int = 0
+    total_revenue_minor: int = 0
+    pending_claims: int = 0
+    pending_payouts: int = 0
+    pending_videos: int = 0
+
+
 class AdminConsoleBusinessRow(BaseModel):
     business_id: UUID
     name: str
@@ -519,6 +527,7 @@ class AdminConsolePosterAssetListResponse(BaseModel):
 
 class AdminConsoleSharedLinkListingRow(BaseModel):
     normalized_url: str
+    source_url_raw: str | None = None
     status: str
     cached_payload: dict | None = None
     created_at: datetime
@@ -539,4 +548,294 @@ class AdminSharedLinkListingUpdateRequest(BaseModel):
     start_time: str | None = Field(None, description="ISO 8601, empty string to clear")
     price: str | None = None
     status: str | None = Field(None, pattern="^(pending|approved|rejected)$")
+
+
+# ─── Ticketing v3 ────────────────────────────────────────────────────────
+
+
+class TicketTypeBulkRow(BaseModel):
+    ticket_type_id: UUID | None = None
+    name: str
+    description: str | None = None
+    price_minor_units: int = Field(ge=0)
+    quantity_available: int | None = Field(default=None, ge=1)
+    sale_start: datetime | None = None
+    sale_end: datetime | None = None
+    refundable_until: datetime | None = None
+
+
+class TicketTypeBulkRequest(BaseModel):
+    types: list[TicketTypeBulkRow]
+
+
+class TicketTypeResponse(BaseModel):
+    ticket_type_id: UUID
+    name: str
+    description: str | None = None
+    price_minor_units: int
+    currency: str = "KES"
+    quantity_available: int | None = None
+    quantity_sold: int = 0
+    sale_start: datetime | None = None
+    sale_end: datetime | None = None
+    refundable_until: datetime | None = None
+    is_active: bool = True
+    sort_order: int = 0
+
+
+class PurchaseItem(BaseModel):
+    ticket_type_id: UUID
+    quantity: int = Field(default=1, ge=1)
+
+
+class PurchaseRequest(BaseModel):
+    community_event_id: UUID
+    items: list[PurchaseItem]
+    payment_provider: str = Field(default="stripe", pattern="^(stripe|mpesa)$")
+
+
+class PurchaseResponse(BaseModel):
+    order_id: UUID
+    receipt_number: str
+    total_minor_units: int
+    platform_fee_minor_units: int
+    payment_provider: str
+    ticket_codes: list[str]
+    points_earned: int = 0
+
+
+class OrderTicketRow(BaseModel):
+    ticket_id: UUID
+    short_code: str
+    ticket_type_name: str
+    status: str
+    checked_in_at: datetime | None = None
+
+
+class OrderResponse(BaseModel):
+    order_id: UUID
+    community_event_id: UUID
+    event_title: str
+    status: str
+    type: str = "ticket"
+    total_minor_units: int
+    platform_fee_minor_units: int = 0
+    business_net_minor_units: int = 0
+    currency: str = "KES"
+    payment_provider: str | None = None
+    receipt_number: str | None = None
+    points_earned: int = 0
+    paid_at: datetime | None = None
+    created_at: datetime
+    tickets: list[OrderTicketRow] = []
+
+
+class DashboardListingRow(BaseModel):
+    community_event_id: UUID
+    title: str
+    start_time: datetime
+    tickets_sold: int = 0
+    revenue_minor: int = 0
+    fees_minor: int = 0
+    checked_in: int = 0
+
+
+class DashboardResponse(BaseModel):
+    business_id: UUID
+    business_name: str
+    total_revenue_minor: int
+    total_fees_minor: int
+    net_available_minor: int
+    total_tickets_sold: int
+    tap_balance: int = 0
+    tap_plan: str = "none"
+    affiliate_earnings_minor: int = 0
+    listings: list[DashboardListingRow] = []
+
+
+class TapPackBuyRequest(BaseModel):
+    plan: str = Field(..., pattern="^(starter|growth|pro|unlimited)$")
+
+
+class TapPackResponse(BaseModel):
+    business_id: UUID
+    tap_balance: int
+    tap_plan: str
+    pricing: dict
+
+
+class FeedVideoPublishRequest(BaseModel):
+    title: str
+    video_uri: str
+    thumbnail_uri: str | None = None
+    community_event_id: UUID | None = None
+    video_type: str = Field(default="promo", pattern="^(promo|countdown|highlights)$")
+    countdown_target: datetime | None = None
+    is_paid: bool = False
+    sort_order: int = Field(default=0, ge=0)
+
+
+class VideoModerationRequest(BaseModel):
+    moderation_status: str = Field(..., pattern="^(approved|rejected)$")
+
+
+class FeedVideoResponse(BaseModel):
+    video_id: UUID
+    title: str
+    video_uri: str | None = None
+    thumbnail_uri: str | None = None
+    video_type: str = "promo"
+    moderation_status: str = "pending"
+    views: int = 0
+    whatsapp_taps: int = 0
+    created_at: datetime | None = None
+    business_name: str | None = None
+    event_title: str | None = None
+    community_event_id: UUID | None = None
+
+
+class FeedWatchResponse(BaseModel):
+    points_earned: int = 0
+
+
+class WatchQuotaResponse(BaseModel):
+    is_premium: bool = False
+    videos_watched_today: int = 0
+    videos_remaining: int = 0
+    daily_limit: int = 10
+    premium_price_minor: int = 30000
+
+
+class ProductCreateRequest(BaseModel):
+    title: str
+    description: str | None = None
+    price_minor_units: int = Field(ge=0)
+    image_uri: str | None = None
+
+
+class ProductResponse(BaseModel):
+    product_id: UUID
+    title: str
+    description: str | None = None
+    price_minor_units: int
+    image_uri: str | None = None
+    is_active: bool = True
+
+
+class ProductEventLinkRequest(BaseModel):
+    product_id: UUID
+    commission_seller_percent: int | None = Field(default=80, ge=0, le=100)
+    commission_owner_percent: int | None = Field(default=10, ge=0, le=100)
+    commission_platform_percent: int | None = Field(default=10, ge=0, le=100)
+
+
+class ProductEventLinkApproveRequest(BaseModel):
+    commission_seller_percent: int = Field(default=80, ge=0, le=100)
+    commission_owner_percent: int = Field(default=10, ge=0, le=100)
+    commission_platform_percent: int = Field(default=10, ge=0, le=100)
+
+
+class ProductEventLinkResponse(BaseModel):
+    link_id: UUID | None = None
+    product_id: UUID | None = None
+    title: str | None = None
+    description: str | None = None
+    price_minor_units: int | None = None
+    image_uri: str | None = None
+    seller_name: str | None = None
+    status: str = "pending"
+    commission_seller_percent: int | None = None
+    commission_owner_percent: int | None = None
+    commission_platform_percent: int | None = None
+
+
+class PayoutRequest(BaseModel):
+    payout_method: str = Field(default="mpesa_till", pattern="^(mpesa_till|mpesa_paybill|bank|stripe)$")
+    mpesa_till_number: str | None = None
+    mpesa_paybill_number: str | None = None
+    mpesa_account_ref: str | None = None
+    bank_name: str | None = None
+    bank_account_name: str | None = None
+    bank_account_number: str | None = None
+    bank_branch_code: str | None = None
+    payout_frequency: str = Field(default="manual", pattern="^(manual|weekly|monthly)$")
+    minimum_payout_minor: int = Field(default=50000, ge=0)
+
+
+class PayoutResponse(BaseModel):
+    payout_id: UUID
+    period_start: datetime
+    period_end: datetime
+    gross_minor_units: int
+    fees_minor_units: int = 0
+    net_minor_units: int
+    status: str = "pending"
+    payment_reference: str | None = None
+    paid_at: datetime | None = None
+    created_at: datetime
+
+
+class ClaimCreateRequest(BaseModel):
+    order_id: UUID
+    claim_type: str = Field(..., pattern="^(ticket_not_received|event_cancelled|refund|other)$")
+    reason: str | None = None
+
+
+class AdminClaimResolveRequest(BaseModel):
+    claim_type: str = Field(..., pattern="^(resolved_approved|resolved_denied)$")
+    admin_notes: str | None = None
+
+
+class ClaimResponse(BaseModel):
+    claim_id: UUID
+    order_id: UUID | None = None
+    claim_type: str | None = None
+    reason: str | None = None
+    status: str = "open"
+    admin_notes: str | None = None
+    created_at: datetime | None = None
+    resolved_at: datetime | None = None
+
+
+class PointsResponse(BaseModel):
+    balance: int = 0
+    lifetime_earned: int = 0
+    lifetime_redeemed: int = 0
+    last_activity: datetime | None = None
+    discount_code: str | None = None
+    discount_minor: int | None = None
+
+
+class RedeemPointsRequest(BaseModel):
+    points: int = Field(default=10, ge=10, multiple_of=10)
+
+
+class SubscriptionResponse(BaseModel):
+    subscription_id: UUID
+    plan: str = "premium"
+    status: str = "active"
+    current_period_end: datetime | None = None
+    created_at: datetime | None = None
+
+
+class ReferralLinkResponse(BaseModel):
+    link_id: UUID
+    code: str
+    community_event_id: UUID
+    event_title: str | None = None
+    commission_percent: int = 30
+    total_clicks: int = 0
+    total_taps: int = 0
+    total_earned_minor: int = 0
+
+
+class PlatformSettingsResponse(BaseModel):
+    key: str
+    value: dict
+    updated_at: datetime
+
+
+class PlatformSettingsUpdateRequest(BaseModel):
+    key: str
+    value: dict
 

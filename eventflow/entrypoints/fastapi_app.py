@@ -28,6 +28,7 @@ from eventflow.entrypoints.api.routes import (
     places,
     product_gap,
     share,
+    ticketing,
     users,
     venues,
 )
@@ -175,6 +176,7 @@ def create_app() -> FastAPI:
     app.include_router(places.router, prefix="/api/v1")
     app.include_router(groups.router, prefix="/api/v1")
     app.include_router(product_gap.router, prefix="/api/v1")
+    app.include_router(ticketing.router, prefix="/api/v1")
     app.include_router(admin_console.router, prefix="/api/v1")
     app.include_router(calendar_oauth.router, prefix="/api/v1")
     app.include_router(health.router, prefix="/api/v1")

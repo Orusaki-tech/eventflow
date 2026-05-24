@@ -177,6 +177,7 @@ export async function listAdminPosterAssets(
 
 export type AdminSharedLinkListingRow = {
   normalized_url: string;
+  source_url_raw: string | null;
   status: string;
   cached_payload: Record<string, unknown> | null;
   created_at: string;
@@ -223,4 +224,157 @@ export async function putAdminSharedLinkListing(
   }
 ): Promise<AdminSharedLinkListingRow> {
   return efFetch("/api/v1/admin/console/shared-link-listing", token, { method: "PUT", json: body });
+}
+
+// ─── ADMIN: TICKETING v3 ─────────────────────────────────────────────────
+
+export type AdminOrderRow = {
+  order_id: string;
+  user_id: string;
+  event_title: string;
+  status: string;
+  total_minor: number;
+  fee_minor: number;
+  payment_provider: string | null;
+  created_at: string;
+};
+
+export async function listAdminOrders(
+  token: string,
+  params: { limit?: number; offset?: number }
+): Promise<AdminOrderRow[]> {
+  const q = new URLSearchParams();
+  if (params.limit != null) q.set("limit", String(params.limit));
+  if (params.offset != null) q.set("offset", String(params.offset));
+  const qs = q.toString();
+  return efFetch<AdminOrderRow[]>(`/api/v1/admin/console/orders${qs ? `?${qs}` : ""}`, token, { method: "GET" });
+}
+
+export type AdminClaimRow = {
+  claim_id: string;
+  order_id: string | null;
+  user_id: string;
+  claim_type: string;
+  reason: string | null;
+  status: string;
+  admin_notes: string | null;
+  created_at: string;
+  resolved_at: string | null;
+};
+
+export async function listAdminClaims(
+  token: string,
+  params: { limit?: number; offset?: number; status?: string }
+): Promise<AdminClaimRow[]> {
+  const q = new URLSearchParams();
+  if (params.limit != null) q.set("limit", String(params.limit));
+  if (params.offset != null) q.set("offset", String(params.offset));
+  if (params.status) q.set("status", params.status);
+  const qs = q.toString();
+  return efFetch<AdminClaimRow[]>(`/api/v1/admin/console/claims${qs ? `?${qs}` : ""}`, token, { method: "GET" });
+}
+
+export async function resolveAdminClaim(
+  token: string,
+  claimId: string,
+  body: { claim_type: "resolved_approved" | "resolved_denied"; admin_notes?: string | null }
+): Promise<{ ok: boolean; status: string }> {
+  return efFetch(`/api/v1/admin/console/claims/${encodeURIComponent(claimId)}`, token, {
+    method: "PATCH",
+    json: body,
+  });
+}
+
+export type AdminPayoutRow = {
+  payout_id: string;
+  business_name: string;
+  gross_minor: number;
+  fees_minor: number;
+  net_minor: number;
+  status: string;
+  reference: string | null;
+  created_at: string;
+};
+
+export async function listAdminPayouts(
+  token: string,
+  params: { limit?: number; offset?: number }
+): Promise<AdminPayoutRow[]> {
+  const q = new URLSearchParams();
+  if (params.limit != null) q.set("limit", String(params.limit));
+  if (params.offset != null) q.set("offset", String(params.offset));
+  const qs = q.toString();
+  return efFetch<AdminPayoutRow[]>(`/api/v1/admin/console/payouts${qs ? `?${qs}` : ""}`, token, { method: "GET" });
+}
+
+export async function processAdminPayout(
+  token: string,
+  payoutId: string
+): Promise<{ ok: boolean }> {
+  return efFetch(`/api/v1/admin/console/payouts/${encodeURIComponent(payoutId)}/process`, token, {
+    method: "POST",
+  });
+}
+
+export type AdminFeedVideoRow = {
+  video_id: string;
+  title: string;
+  business_name: string | null;
+  moderation_status: string;
+  views: number;
+  created_at: string;
+};
+
+export async function listAdminFeedVideos(
+  token: string,
+  params: { limit?: number; offset?: number }
+): Promise<AdminFeedVideoRow[]> {
+  const q = new URLSearchParams();
+  if (params.limit != null) q.set("limit", String(params.limit));
+  if (params.offset != null) q.set("offset", String(params.offset));
+  const qs = q.toString();
+  return efFetch<AdminFeedVideoRow[]>(`/api/v1/admin/console/videos${qs ? `?${qs}` : ""}`, token, { method: "GET" });
+}
+
+export async function moderateAdminFeedVideo(
+  token: string,
+  videoId: string,
+  body: { moderation_status: "approved" | "rejected" }
+): Promise<{ ok: boolean; status: string }> {
+  return efFetch(`/api/v1/admin/console/videos/${encodeURIComponent(videoId)}/moderation`, token, {
+    method: "PATCH",
+    json: body,
+  });
+}
+
+export type PlatformSettingsRow = {
+  key: string;
+  value: Record<string, unknown>;
+  updated_at: string;
+};
+
+export async function listPlatformSettings(token: string): Promise<PlatformSettingsRow[]> {
+  return efFetch<PlatformSettingsRow[]>("/api/v1/admin/console/platform-settings", token, { method: "GET" });
+}
+
+export async function updatePlatformSetting(token: string, key: string, value: Record<string, unknown>): Promise<void> {
+  await efFetch<void>("/api/v1/admin/console/platform-settings", token, {
+    method: "PUT",
+    json: { key, value },
+  });
+}
+
+export async function getAdminSummaryV3(token: string): Promise<{
+  businesses: number;
+  community_events: number;
+  poster_assets: number;
+  event_drafts: number;
+  distinct_active_user_ids: number;
+  total_orders: number;
+  total_revenue_minor: number;
+  pending_claims: number;
+  pending_payouts: number;
+  pending_videos: number;
+}> {
+  return efFetch("/api/v1/admin/console/summary-v3", token, { method: "GET" });
 }

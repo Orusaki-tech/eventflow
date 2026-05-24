@@ -390,10 +390,12 @@ def search_community_events(*, session: Any, query_vector: str, limit: int = 20)
     return [dict(r._mapping) for r in results]
 
 
-def list_feed_home(*, user_id: UUID, session: Any | None, limit: int = 50) -> List[dict]:
+def list_feed_home(*, user_id: UUID, session: Any | None, limit: int = 50, offset: int = 0) -> List[dict]:
     """Compose discovery feed: followed organisers plus trending/sponsored community listings."""
     if session is None:
         return []
+    # Each sub-query fetches limit+offset rows to account for dedup across categories.
+    fetch = int(limit) + int(offset)
     merged: dict[str, dict] = {}
     followed = session.execute(
         text(
@@ -419,7 +421,7 @@ def list_feed_home(*, user_id: UUID, session: Any | None, limit: int = 50) -> Li
             LIMIT :lim
             """
         ),
-        {"uid": str(user_id), "lim": int(limit)},
+        {"uid": str(user_id), "lim": fetch},
     )
     for r in followed:
         merged[str(r.id)] = dict(r._mapping)
@@ -448,7 +450,7 @@ def list_feed_home(*, user_id: UUID, session: Any | None, limit: int = 50) -> Li
             LIMIT :lim
             """
         ),
-        {"uid": str(user_id), "lim": int(limit)},
+        {"uid": str(user_id), "lim": fetch},
     )
     for r in business_followed:
         k = str(r.id)
@@ -478,7 +480,7 @@ def list_feed_home(*, user_id: UUID, session: Any | None, limit: int = 50) -> Li
             LIMIT :lim
             """
         ),
-        {"lim": int(limit)},
+        {"lim": fetch},
     )
     for r in trending:
         k = str(r.id)
@@ -487,5 +489,5 @@ def list_feed_home(*, user_id: UUID, session: Any | None, limit: int = 50) -> Li
 
     items = list(merged.values())
     items.sort(key=lambda row: (-int(row.get("sponsored_rank") or 0), row.get("start_time")))
-    return items[: int(limit)]
+    return items[int(offset) : int(offset) + int(limit)]
 
