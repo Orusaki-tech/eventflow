@@ -21,7 +21,20 @@ export default function AffiliateRequestsPage() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { void reload(); }, [token]);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await listAffiliateRequests(token);
+        if (!cancelled) setRequests(r);
+      } catch (e: unknown) {
+        if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
 
   const approve = async (linkId: string) => {
     setErr(null); setStatus(null);

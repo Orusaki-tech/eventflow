@@ -93,9 +93,9 @@ export function DraftDetailScreen({ navigation, route }: Props) {
     useCallback(() => {
       let cancelled = false;
       void (async () => {
-        void getDraftPosterAssetId(draftId).then((pid) => {
+        getDraftPosterAssetId(draftId).then((pid) => {
           if (!cancelled) setPosterAssetId(pid ?? null);
-        });
+        }).catch(() => undefined);
         setLoading(true);
         try {
           const d = await getDraft(apiBaseUrl, accessToken, draftId);

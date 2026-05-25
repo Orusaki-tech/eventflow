@@ -3,7 +3,7 @@
 import { IconCheck, IconCircleCheck, IconCircleX, IconClock, IconX } from "@tabler/icons-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAdminAuth } from "@/components/admin/admin-auth-context";
 import {
   listAdminSharedLinkListings,
@@ -55,6 +55,7 @@ export default function AdminSharedLinksPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [searchDraft, setSearchDraft] = useState(q);
   const [editingUrl, setEditingUrl] = useState<string | null>(null);
+  const mountedRef = useRef(true);
   const [editTitle, setEditTitle] = useState("");
   const [editVenue, setEditVenue] = useState("");
   const [editStart, setEditStart] = useState("");
@@ -65,6 +66,7 @@ export default function AdminSharedLinksPage() {
   }, [q]);
 
   useEffect(() => {
+    mountedRef.current = true;
     let cancelled = false;
     void (async () => {
       try {
@@ -84,6 +86,7 @@ export default function AdminSharedLinksPage() {
     })();
     return () => {
       cancelled = true;
+      mountedRef.current = false;
     };
   }, [token, offset, q, statusFilter]);
 
@@ -104,10 +107,10 @@ export default function AdminSharedLinksPage() {
 
   const openEditor = (r: AdminSharedLinkListingRow) => {
     setEditingUrl(r.normalized_url);
-    setEditTitle((r.cached_payload?.title as string) ?? "");
-    setEditVenue((r.cached_payload?.venue as string) ?? "");
-    setEditStart(utcToInput(r.cached_payload?.start_time as string));
-    setEditPrice((r.cached_payload?.price as string) ?? "");
+    setEditTitle(r.cached_payload?.title != null ? String(r.cached_payload.title) : "");
+    setEditVenue(r.cached_payload?.venue != null ? String(r.cached_payload.venue) : "");
+    setEditStart(utcToInput(r.cached_payload?.start_time != null ? String(r.cached_payload.start_time) : null));
+    setEditPrice(r.cached_payload?.price != null ? String(r.cached_payload.price) : "");
   };
 
   const closeEditor = () => {
@@ -115,6 +118,7 @@ export default function AdminSharedLinksPage() {
   };
 
   const saveEdit = async (url: string, newStatus?: string) => {
+    if (!mountedRef.current) return;
     setBusyId(url);
     try {
       await putAdminSharedLinkListing(token, {
@@ -131,13 +135,15 @@ export default function AdminSharedLinksPage() {
         q: q || undefined,
         status: statusFilter || undefined,
       });
-      setRows(res.items);
-      setTotal(res.total);
-      setEditingUrl(null);
+      if (mountedRef.current) {
+        setRows(res.items);
+        setTotal(res.total);
+        setEditingUrl(null);
+      }
     } catch (e: unknown) {
-      setLoadErr(e instanceof Error ? e.message : String(e));
+      if (mountedRef.current) setLoadErr(e instanceof Error ? e.message : String(e));
     } finally {
-      setBusyId(null);
+      if (mountedRef.current) setBusyId(null);
     }
   };
 
@@ -312,29 +318,29 @@ export default function AdminSharedLinksPage() {
                       <td
                         style={{ fontSize: 11, cursor: "pointer", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
                         onClick={() => openEditor(r)}
-                        title={r.cached_payload?.title as string ?? ""}
+                        title={r.cached_payload?.title != null ? String(r.cached_payload.title) : ""}
                       >
-                        {(r.cached_payload?.title as string) ?? "—"}
+                        {r.cached_payload?.title != null ? String(r.cached_payload.title) : "—"}
                       </td>
                       <td
                         style={{ fontSize: 11, cursor: "pointer" }}
                         onClick={() => openEditor(r)}
                       >
-                        {(r.cached_payload?.venue as string) ?? "—"}
+                        {r.cached_payload?.venue != null ? String(r.cached_payload.venue) : "—"}
                       </td>
                       <td
                         style={{ fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}
                         onClick={() => openEditor(r)}
                       >
-                        {r.cached_payload?.start_time
-                          ? utcToInput(r.cached_payload.start_time as string)
+                        {r.cached_payload?.start_time != null
+                          ? utcToInput(String(r.cached_payload.start_time))
                           : "—"}
                       </td>
                       <td
                         style={{ fontSize: 11, cursor: "pointer" }}
                         onClick={() => openEditor(r)}
                       >
-                        {(r.cached_payload?.price as string) ?? "—"}
+                        {r.cached_payload?.price != null ? String(r.cached_payload.price) : "—"}
                       </td>
                       <td style={{ whiteSpace: "nowrap", fontSize: 11 }}>{new Date(r.updated_at).toISOString().slice(0, 16)}</td>
                     </>

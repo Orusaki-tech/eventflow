@@ -1,18 +1,35 @@
+volumes:
+  caddy_data:
+  prometheus_data:
+  grafana_data:
+
 services:
+  # ---- Reverse proxy (TLS) ----
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on:
+      api:
+        condition: service_started
+
+  # ---- API ----
   api:
+    image: ${IMAGE_TAG:-eventflow-api:dev}
     build: .
     command: uvicorn eventflow.entrypoints.fastapi_app:app --host 0.0.0.0 --port 8000
     restart: unless-stopped
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     environment:
-      # DB: prefer DB_URL (Supabase / Cloud SQL / etc). Fall back to DB_*
-      # parts only if DB_URL is unset — handy if you ever bring back a local
-      # postgres service for offline dev. The `:-` form keeps compose quiet
-      # when these aren't defined in the env file (the common prod case where
-      # only DB_URL is set).
       - DB_URL=${DB_URL:-}
       - DB_HOST=${DB_HOST:-}
       - DB_PORT=${DB_PORT:-5432}
@@ -34,7 +51,7 @@ services:
       - SUPABASE_JWT_AUDIENCE=${SUPABASE_JWT_AUDIENCE:-authenticated}
       - SUPABASE_JWT_ISSUER=${SUPABASE_JWT_ISSUER}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
       - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
       - GOOGLE_CALENDAR_CREDENTIALS_JSON=${GOOGLE_CALENDAR_CREDENTIALS_JSON}
       - CALENDAR_TOKEN_KEY=${CALENDAR_TOKEN_KEY}
@@ -55,9 +72,6 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    # Loopback-only host binding — never publicly reachable on the VM's external NIC.
-    ports:
-      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -66,24 +80,14 @@ services:
       start_period: 5s
 
   # ---------- Workers ----------
-  # Snooze / reminder pushes: the API writes one-shot jobs via APScheduler; these
-  # services must be running or users never receive notifications:
-  #   scheduler          — executes persisted jobs and triggers push pipeline
-  #   push_sideeffects   — subscribes to alert.scheduled → schedules Expo push jobs
-  #   push_sender        — sends Expo push notifications (needs EXPO_ACCESS_TOKEN)
-  #
-  # Discover / carousel (mobile): requires Postgres + alembic upgrade head so
-  # community_events (and related tables) exist; optionally seed demo rows with
-  #   python3 scripts/seed_discovery_demo.py
-  #
-  # All workers share the same DB / Redis env shape. Anchored here to keep the
-  # service blocks tiny.
   traffic_worker:
+    image: ${IMAGE_TAG:-eventflow-api:dev}
     build: .
     command: python -m eventflow.workers.traffic_monitor
     restart: unless-stopped
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     environment: &worker_env
       - DB_URL=${DB_URL:-}
       - DB_HOST=${DB_HOST:-}
@@ -98,43 +102,53 @@ services:
       - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY:-}
 
   scheduler:
+    image: ${IMAGE_TAG:-eventflow-api:dev}
     build: .
     command: python -m eventflow.workers.scheduler
     restart: unless-stopped
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     environment: *worker_env
 
   outbox_publisher:
+    image: ${IMAGE_TAG:-eventflow-api:dev}
     build: .
     command: python -m eventflow.workers.outbox_publisher
     restart: unless-stopped
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     environment: *worker_env
 
   scheduler_sideeffects:
+    image: ${IMAGE_TAG:-eventflow-api:dev}
     build: .
     command: python -m eventflow.workers.scheduler_sideeffects
     restart: unless-stopped
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     environment: *worker_env
 
   push_sideeffects:
+    image: ${IMAGE_TAG:-eventflow-api:dev}
     build: .
     command: python -m eventflow.workers.push_sideeffects
     restart: unless-stopped
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     environment: *worker_env
 
   push_sender:
+    image: ${IMAGE_TAG:-eventflow-api:dev}
     build: .
     command: python -m eventflow.workers.push_sender
     restart: unless-stopped
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     environment:
       - DB_URL=${DB_URL:-}
       - DB_HOST=${DB_HOST:-}
@@ -149,11 +163,13 @@ services:
       - EXPO_ACCESS_TOKEN=${EXPO_ACCESS_TOKEN:-}
 
   calendar_sideeffects:
+    image: ${IMAGE_TAG:-eventflow-api:dev}
     build: .
     command: python -m eventflow.workers.calendar_sideeffects
     restart: unless-stopped
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     environment:
       - DB_URL=${DB_URL:-}
       - DB_HOST=${DB_HOST:-}
@@ -168,9 +184,39 @@ services:
       - GOOGLE_CALENDAR_CREDENTIALS_JSON=${GOOGLE_CALENDAR_CREDENTIALS_JSON:-}
 
   community_embeddings_worker:
+    image: ${IMAGE_TAG:-eventflow-api:dev}
     build: .
     command: python -m eventflow.workers.community_embeddings_worker
     restart: unless-stopped
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     environment: *worker_env
+
+  # ---- Monitoring ----
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+    expose:
+      - "9090"
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    restart: unless-stopped
+    volumes:
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=
+    expose:
+      - "3000"

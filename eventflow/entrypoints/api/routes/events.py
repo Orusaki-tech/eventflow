@@ -8,7 +8,7 @@ from fastapi.responses import Response
 
 from eventflow.adapters.places_client import FakePlacesClient, GooglePlacesClient
 from eventflow.domain import commands
-from eventflow.domain.exceptions import DraftNotFound, InvariantViolation, PastEventError, PermissionDenied
+from eventflow.domain.exceptions import DraftNotFound, EventNotFound, InvariantViolation, PastEventError, PermissionDenied
 from sqlalchemy import text
 
 from eventflow.adapters.gemini import _coerce_optional_price
@@ -380,6 +380,8 @@ async def cancel_event(
             publisher=publisher,
         )
         return {"status": "cancelled"}
+    except EventNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
 

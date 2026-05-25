@@ -94,7 +94,7 @@ async def main() -> None:
     while True:
         published = publish_once(uow=uow, publisher=publisher, batch_size=cfg.batch_size)
         if published:
-            logging.info("outbox_publisher.published", extra={"count": published})
+            logging.info("outbox_publisher.published count=%s", published)
         if published == 0:
             await asyncio.sleep(cfg.poll_interval_s)
 

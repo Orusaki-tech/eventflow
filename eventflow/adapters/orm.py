@@ -18,6 +18,7 @@ from sqlalchemy import (
     String,
     Table,
     Text,
+    text,
     UniqueConstraint,
 )
 from sqlalchemy import Float as SA_Float
@@ -26,7 +27,7 @@ from sqlalchemy.types import UserDefinedType
 from sqlalchemy.orm import registry, relationship
 
 from eventflow.adapters.repository import OutboxMessage
-from eventflow.domain.model import Alert, AlertType, EventDraft, ScheduledEvent, UserLocation
+from eventflow.domain.model import Alert, EventDraft, ScheduledEvent, UserLocation
 from eventflow.adapters.repository import DevicePushToken
 from eventflow.adapters.repository import CommunityEvent, CommunityEventEmbedding
 from eventflow.adapters.repository import EventShare, Group, GroupMembership, Venue
@@ -91,7 +92,7 @@ venues = Table(
     Column("created_by_user_id", PG_UUID(as_uuid=True), nullable=True, index=True),
     Column("updated_by_user_id", PG_UUID(as_uuid=True), nullable=True, index=True),
     Column("created_at", DateTime(timezone=True), nullable=False, index=True),
-    Column("updated_at", DateTime(timezone=True), nullable=False, index=True),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP"), index=True),
 )
 
 
@@ -291,6 +292,7 @@ event_sources = Table(
     Column("source_url_normalized", Text, nullable=True, index=True),
     Column("poster_asset_id", PG_UUID(as_uuid=True), ForeignKey("poster_assets.id", ondelete="SET NULL"), nullable=True, index=True),
     Column("created_at", DateTime(timezone=True), nullable=False, index=True),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP"), index=True),
     UniqueConstraint("user_id", "draft_id", name="uq_event_sources_user_draft"),
     UniqueConstraint("user_id", "event_id", name="uq_event_sources_user_event"),
 )

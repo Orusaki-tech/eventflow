@@ -15,12 +15,14 @@ export default function BillingPage() {
     setErr(null);
     setStatus(null);
     setBusy(true);
+    const popup = window.open("", "_blank", "noopener,noreferrer");
     try {
       const out = await postBillingCheckout(token);
       setStatus(`Checkout URL issued (${out.provider}).`);
-      if (out.checkout_url) window.open(out.checkout_url, "_blank", "noopener,noreferrer");
+      if (out.checkout_url && popup) popup.location.href = out.checkout_url;
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e));
+      popup?.close();
     } finally {
       setBusy(false);
     }

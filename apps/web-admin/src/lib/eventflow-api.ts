@@ -29,25 +29,29 @@ export async function efFetch<T>(
     body = JSON.stringify(init.json);
   }
   const url = `${apiOrigin()}${apiPathPrefix()}${path}`;
-  const res = await fetch(url, { ...init, headers, body });
-  if (!res.ok) {
-    let detail = res.statusText?.trim() || "";
-    try {
-      const j = (await res.json()) as Record<string, unknown>;
-      const d = j.detail;
-      if (typeof d === "string" && d.trim()) detail = d;
-      else if (d !== undefined) detail = JSON.stringify(d);
-      else if (typeof j.title === "string" && j.title.trim())
-        detail = `${j.title}${typeof j.status === "number" ? ` (${j.status})` : ""}`;
-    } catch {
-      /* ignore */
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  try {
+    const res = await fetch(url, { ...init, headers, body, signal: controller.signal });
+    if (!res.ok) {
+      let detail = res.statusText?.trim() || "";
+      try {
+        const j = (await res.json()) as Record<string, unknown>;
+        const d = j.detail;
+        if (typeof d === "string" && d.trim()) detail = d;
+        else if (d !== undefined) detail = JSON.stringify(d);
+        else if (typeof j.title === "string" && j.title.trim())
+          detail = `${j.title}${typeof j.status === "number" ? ` (${j.status})` : ""}`;
+      } catch {
+        /* ignore */
+      }
+      const err = new Error(detail || `HTTP ${res.status}`) as Error & { status?: number };
+      err.status = res.status;
+      throw err;
     }
-    const err = new Error(detail || `HTTP ${res.status}`) as Error & { status?: number };
-    err.status = res.status;
-    throw err;
-  }
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+    if (res.status === 204) return undefined as T;
+    return (await res.json()) as T;
+  } finally { clearTimeout(timeoutId); }
 }
 
 export type AdminMeResponse = { ok: boolean; user_id: string };

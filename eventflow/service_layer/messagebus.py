@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Type
 
@@ -9,6 +10,8 @@ from eventflow.adapters.repository import OutboxMessage
 from eventflow.service_layer import handlers
 from eventflow.service_layer.unit_of_work import AbstractUnitOfWork
 
+
+_log = logging.getLogger(__name__)
 
 CommandHandler = Callable[[Any, AbstractUnitOfWork], Any]
 EventHandler = Callable[[Any, AbstractUnitOfWork], None]
@@ -25,6 +28,7 @@ COMMAND_HANDLERS: Dict[Type[Any], CommandHandler] = {
     commands.CancelEvent: handlers.handle_cancel_event,
     commands.ScheduleTrafficAlert: handlers.handle_schedule_traffic_alert,
     commands.ScheduleReminderAlert: handlers.handle_schedule_reminder_alert,
+    commands.UpdateEventDraft: handlers.handle_update_event_draft,
 }
 
 EVENT_HANDLERS: Dict[Type[Any], List[EventHandler]] = {
@@ -68,8 +72,7 @@ def _handle_command(cmd: Any, queue: List[Any], uow: AbstractUnitOfWork) -> Any:
         new_events = list(uow.collect_new_events())
         _enqueue_outbox_messages(new_events, uow)
         uow.commit()
-
-    queue.extend(new_events)
+        queue.extend(new_events)
     return result
 
 
@@ -78,7 +81,7 @@ def _handle_event(evt: Any, queue: List[Any], uow: AbstractUnitOfWork) -> None:
         try:
             handler(evt, uow)
         except Exception:
-            # event side-effects fail independently; caller can add retry/logging later
+            _log.exception("Event handler failed for %s", evt)
             continue
         queue.extend(uow.collect_new_events())
 

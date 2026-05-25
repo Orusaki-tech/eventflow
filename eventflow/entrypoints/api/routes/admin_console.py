@@ -8,24 +8,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 
+from eventflow.adapters import normalize_shared_url
 from eventflow.entrypoints.api.business_verified_updates import set_business_verified
-
-
-_ALLOWED_FILTER_FIELDS = frozenset(["normalized_url ILIKE :pat", "status = :status"])
-"""Controlled set of WHERE clause fragments — only these may appear in f-string SQL below."""
-
-
-def _build_where(filters: list[str]) -> tuple[str, bool]:
-    """Join filter fragments with AND.  Returns (sql_snippet, is_safe).
-
-    Each fragment must be in _ALLOWED_FILTER_FIELDS.  Values use :param bindings.
-    """
-    for f in filters:
-        if f not in _ALLOWED_FILTER_FIELDS:
-            return ("", False)
-    if not filters:
-        return ("", True)
-    return ("WHERE " + " AND ".join(filters), True)
 from eventflow.entrypoints.api.schemas import (
     AdminBusinessVerifiedPatchRequest,
     AdminConsoleBusinessListResponse,
@@ -44,7 +28,22 @@ from eventflow.entrypoints.api.schemas import (
 )
 from eventflow.entrypoints.dependencies import get_session, require_admin_user
 
-from eventflow.adapters import normalize_shared_url
+
+_ALLOWED_FILTER_FIELDS = frozenset(["normalized_url ILIKE :pat", "status = :status"])
+"""Controlled set of WHERE clause fragments — only these may appear in f-string SQL below."""
+
+
+def _build_where(filters: list[str]) -> tuple[str, bool]:
+    """Join filter fragments with AND.  Returns (sql_snippet, is_safe).
+
+    Each fragment must be in _ALLOWED_FILTER_FIELDS.  Values use :param bindings.
+    """
+    for f in filters:
+        if f not in _ALLOWED_FILTER_FIELDS:
+            return ("", False)
+    if not filters:
+        return ("", True)
+    return ("WHERE " + " AND ".join(filters), True)
 
 router = APIRouter(tags=["Admin console"], prefix="/admin/console")
 
@@ -324,7 +323,8 @@ async def admin_console_shared_link_listings(
         params["status"] = status
 
     where_sql, safe = _build_where(filter_frags)
-    assert safe, f"Unexpected filter fragment in {filter_frags}"
+    if not safe:
+        raise ValueError(f"Unsafe SQL: unexpected filter fragment in {filter_frags}")
 
     rows = session.execute(
         text(

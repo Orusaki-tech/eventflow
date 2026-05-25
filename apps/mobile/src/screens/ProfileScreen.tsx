@@ -125,11 +125,11 @@ export function ProfileScreen({ navigation }: Props) {
         text: "Sign out",
         style: "destructive",
         onPress: () => {
-          void signOut().then(() => {
+          signOut().then(() => {
             if (navigationRef.isReady()) {
               navigationRef.reset({ index: 0, routes: [{ name: "Auth" }] });
             }
-          });
+          }).catch(() => undefined);
         },
       },
     ]);

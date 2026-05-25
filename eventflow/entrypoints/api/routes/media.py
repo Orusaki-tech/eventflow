@@ -4,6 +4,7 @@ import logging
 import re
 import ssl
 import json
+from uuid import UUID
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse, urlencode
 from urllib.request import Request, build_opener, ProxyHandler, HTTPSHandler
@@ -257,6 +258,7 @@ def resolve_image(
 @router.get("/media/image", response_class=Response)
 def get_image(
     token: str = Query(..., min_length=8),
+    user_id=Depends(get_current_user_id),
     store: ImageTokenStore = Depends(get_image_token_store),
 ):
     img = store.get(token=token)
@@ -267,31 +269,21 @@ def get_image(
 
 @router.get("/media/poster/{poster_asset_id}", response_class=Response)
 def get_poster(
-    poster_asset_id: str,
+    poster_asset_id: UUID,
     user_id=Depends(get_current_user_id),
     session=Depends(get_session),
     store: PosterStore = Depends(get_poster_store),
 ):
     if session is None:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="DB not configured")
-    try:
-        row = session.execute(
-            text("SELECT poster_id, content_type FROM poster_assets WHERE id = :id LIMIT 1"),
-            {"id": poster_asset_id},
-        ).first()
-    except Exception:
-        row = None
+    row = session.execute(
+        text("SELECT poster_id, content_type FROM poster_assets WHERE id = :id LIMIT 1"),
+        {"id": str(poster_asset_id)},
+    ).first()
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Poster not found")
-    
-    poster_id, content_type = row[0], row[1]
-    
-    try:
-        from uuid import UUID
-        pid = UUID(str(poster_id))
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Poster not found")
-    img = store.get(poster_id=pid)
+    content_type = row[1]
+    img = store.get(poster_id=poster_asset_id)
     if img is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Poster not found")
     return Response(content=img.image_bytes, media_type=content_type or img.content_type, headers={"Cache-Control": "public, max-age=86400"})
@@ -300,6 +292,7 @@ def get_poster(
 @router.get("/media/thumbnail", response_class=Response)
 def get_thumbnail(
     url: str = Query(..., description="Original shared URL (YouTube/TikTok/etc.)."),
+    user_id=Depends(get_current_user_id),
 ):
     if not media_extractor.supports_url(url):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported URL for thumbnail extraction")

@@ -134,6 +134,8 @@ class ScheduledEvent:
             raise InvariantViolation("Cannot create ScheduledEvent from unconfirmed draft")
         if draft.start_time is None:
             raise InvariantViolation("Draft must have a start time before scheduling")
+        if draft.start_time < datetime.now(timezone.utc):
+            raise InvariantViolation("Cannot schedule an event in the past")
         evt = cls(
             id=uuid4(),
             user_id=draft.user_id,
@@ -154,6 +156,7 @@ class ScheduledEvent:
 
         depart_at = self.start_time - timedelta(seconds=int(traffic.travel_seconds))
         alert = Alert(
+            event_id=self.id,
             alert_type=AlertType.TRAFFIC_ALERT,
             trigger_at=depart_at,
             message=f"Leave now for {self.title}",
@@ -174,6 +177,7 @@ class ScheduledEvent:
             raise InvariantViolation("Reminder trigger must be in the future")
 
         alert = Alert(
+            event_id=self.id,
             alert_type=AlertType.REMINDER,
             trigger_at=trigger_at,
             message=f"Reminder: {self.title} starts soon",

@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 import redis
+from apscheduler.jobstores.base import JobLookupError
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -82,7 +83,7 @@ class SchedulerClient:
         job_id = f"traffic:{event_id}"
         try:
             self.scheduler.remove_job(job_id)
-        except Exception:
+        except JobLookupError:
             return
 
     def schedule_push_due(
@@ -120,7 +121,7 @@ class SchedulerClient:
         job_id = f"push:{job_key}"
         try:
             self.scheduler.remove_job(job_id)
-        except Exception:
+        except JobLookupError:
             return
 
 

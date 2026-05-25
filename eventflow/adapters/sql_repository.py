@@ -8,7 +8,6 @@ from sqlalchemy import delete, desc, insert, select, text, update
 from sqlalchemy.orm import Session
 
 from eventflow.adapters.orm import (
-    community_event_embeddings,
     community_events,
     device_push_tokens,
     venues,

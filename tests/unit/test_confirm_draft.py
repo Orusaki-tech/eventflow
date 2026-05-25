@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
@@ -32,7 +32,7 @@ def test_confirm_draft_creates_scheduled_event():
     draft = EventDraft.new(
         user_id=user_id,
         title="PyConKE 2026",
-        start_time=datetime.now(timezone.utc),
+        start_time=datetime.now(timezone.utc).replace(hour=23) + timedelta(days=1),
         venue="Nairobi",
         confidence_score=0.9,
     )

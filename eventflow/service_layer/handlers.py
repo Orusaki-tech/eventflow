@@ -30,7 +30,7 @@ from eventflow.adapters.repository import CalendarToken, OutboxMessage
 from eventflow.domain import commands
 from eventflow.domain import events as domain_events
 from eventflow.adapters.gemini import _coerce_optional_price, _inline_image_mime_type
-from eventflow.domain.exceptions import DraftNotFound, InvariantViolation, PermissionDenied
+from eventflow.domain.exceptions import DraftNotFound, EventNotFound, InvariantViolation, PermissionDenied
 from eventflow.domain.model import EventDraft, ScheduledEvent, TrafficCondition
 from eventflow.service_layer.unit_of_work import AbstractUnitOfWork
 from eventflow.adapters.repository import CommunityEvent
@@ -186,7 +186,7 @@ def _extract_text_from_html(html: str) -> str:
     html = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", html)
     html = re.sub(r"(?is)<[^>]+>", " ", html)
     html = unescape(html)
-    html = re.sub(r"\\s+", " ", html).strip()
+    html = re.sub(r"\s+", " ", html).strip()
     return html
 
 
@@ -612,14 +612,14 @@ def handle_capture_instagram_carousel_url(
         num_slides=len(targets),
     )
 
-    batches: list[tuple[int, bytes, str]] = []
-    for idx in indices:
-        img_url, hdrs = targets[idx - 1]
-        image_bytes, declared_ct = _fetch_remote_image_bytes(url=img_url, extra_headers=hdrs)
-        batches.append((idx, image_bytes, declared_ct))
-
     out: list[dict] = []
     try:
+        batches: list[tuple[int, bytes, str]] = []
+        for idx in indices:
+            img_url, hdrs = targets[idx - 1]
+            image_bytes, declared_ct = _fetch_remote_image_bytes(url=img_url, extra_headers=hdrs)
+            batches.append((idx, image_bytes, declared_ct))
+
         for idx, image_bytes, declared_ct in batches:
             mime = _inline_image_mime_type(declared_content_type=declared_ct, image_bytes=image_bytes)
             parsed_ev = gemini.parse_event_image(image_bytes=image_bytes, content_type=mime)
@@ -643,6 +643,8 @@ def handle_capture_instagram_carousel_url(
         row["_share_preview_image_bytes"] = image_bytes
         row["_share_preview_content_type"] = declared_ct
         return [row], [first_idx]
+    if not batches:
+        return [], []
 
 
 def handle_capture_event_upload_image(
@@ -706,17 +708,17 @@ def handle_capture_event_ics(cmd: commands.CaptureEventIcs, uow: AbstractUnitOfW
 
 
 def handle_upsert_community_event(cmd: commands.UpsertCommunityEvent, uow: AbstractUnitOfWork) -> dict:
-    evt = CommunityEvent(
-        user_id=cmd.user_id,
-        source=cmd.source,
-        title=cmd.title,
-        start_time=cmd.start_time,
-        venue=cmd.venue,
-        description=cmd.description,
-        poster_image_uri=cmd.poster_image_uri,
-        created_at=datetime.now(timezone.utc),
-    )
     with uow:
+        evt = CommunityEvent(
+            user_id=cmd.user_id,
+            source=cmd.source,
+            title=cmd.title,
+            start_time=cmd.start_time,
+            venue=cmd.venue,
+            description=cmd.description,
+            poster_image_uri=cmd.poster_image_uri,
+            created_at=datetime.now(timezone.utc),
+        )
         uow.community_events.upsert(evt)
         now = datetime.now(timezone.utc)
         uow.outbox.add(OutboxMessage(topic="community_event.upserted", payload={"community_event_id": str(evt.id)}, occurred_at=now))
@@ -793,10 +795,10 @@ def handle_confirm_event_draft(
                         ).first()
                         if existing and existing[0]:
                             draft.confirm()
+                            list(uow.collect_new_events())
                             return str(existing[0])
         except Exception:
-            # Never block confirmation on best-effort dedupe
-            pass
+            _log.warning("confirm_draft source migration failed for draft_id=%s", cmd.draft_id)
 
     draft.confirm()
     scheduled = ScheduledEvent.from_confirmed_draft(draft)
@@ -828,8 +830,7 @@ def handle_confirm_event_draft(
                     },
                 )
         except Exception:
-            # Leave the main transaction intact.
-            pass
+            _log.warning("confirm_draft source migration UPDATE failed for draft_id=%s", cmd.draft_id)
     return str(scheduled.id)
 
 
@@ -882,7 +883,7 @@ def handle_update_event_draft(cmd: commands.UpdateEventDraft, uow: AbstractUnitO
 def handle_cancel_event(cmd: commands.CancelEvent, uow: AbstractUnitOfWork) -> None:
     evt = uow.events.get(cmd.event_id)
     if evt is None:
-        return
+        raise EventNotFound(f"Event {cmd.event_id} not found")
     if evt.user_id != cmd.user_id:
         raise PermissionDenied("Not your event")
     evt.cancel()
@@ -969,9 +970,12 @@ def register_push_notification(evt, uow: AbstractUnitOfWork) -> None:
     if push_client is None:
         return
 
-    # Scheduling/delivery is provider-specific; for now this is a no-op client.
+    scheduled = uow.events.get(evt.event_id)
+    if scheduled is None:
+        return
+
     push_client.schedule_push(
-        user_id="unknown",
+        user_id=str(scheduled.user_id),
         title="EventFlow alert",
         body="Leave now",
         trigger_at_iso=evt.trigger_at.isoformat(),

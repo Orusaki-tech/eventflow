@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAdminAuth } from "@/components/admin/admin-auth-context";
 import { listAdminPayouts, processAdminPayout, type AdminPayoutRow } from "@/lib/eventflow-api";
 
@@ -15,22 +15,34 @@ export default function AdminPayoutsPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  const reload = async () => {
-    setLoading(true); setErr(null);
-    try { setPayouts(await listAdminPayouts(token, { limit: 50 })); }
-    catch (e: unknown) { setErr(e instanceof Error ? e.message : String(e)); }
-    finally { setLoading(false); }
-  };
+  const cancelledRef = useRef(false);
 
-  useEffect(() => { void reload(); }, [token]);
+  useEffect(() => {
+    cancelledRef.current = false;
+    void (async () => {
+      setLoading(true); setErr(null);
+      try {
+        const data = await listAdminPayouts(token, { limit: 500 });
+        if (!cancelledRef.current) setPayouts(data);
+      } catch (e: unknown) {
+        if (!cancelledRef.current) setErr(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelledRef.current) setLoading(false);
+      }
+    })();
+    return () => { cancelledRef.current = true; };
+  }, [token]);
 
   const markPaid = async (payoutId: string) => {
     setErr(null); setStatus(null);
     try {
       await processAdminPayout(token, payoutId);
       setStatus(`Payout ${payoutId.slice(0, 8)} marked as paid.`);
-      await reload();
-    } catch (e: unknown) { setErr(e instanceof Error ? e.message : String(e)); }
+      const data = await listAdminPayouts(token, { limit: 500 });
+      if (!cancelledRef.current) setPayouts(data);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
   };
 
   return (

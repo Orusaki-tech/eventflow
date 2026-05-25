@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAdminAuth } from "@/components/admin/admin-auth-context";
 import { listAdminClaims, resolveAdminClaim, type AdminClaimRow } from "@/lib/eventflow-api";
 
@@ -14,34 +14,48 @@ export default function ClaimDetailPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     if (!id) return;
     setLoading(true);
+    let cancelled = false;
     void (async () => {
       try {
-        const claims = await listAdminClaims(token, { limit: 200 });
+        const claims = await listAdminClaims(token, { limit: 10000 });
         const found = claims.find((c) => c.claim_id === id);
-        if (found) setClaim(found);
-        else throw new Error("Claim not found");
-      } catch (e: unknown) { setErr(e instanceof Error ? e.message : String(e)); }
-      finally { setLoading(false); }
+        if (!cancelled) {
+          if (found) setClaim(found);
+          else throw new Error("Claim not found");
+        }
+      } catch (e: unknown) { if (!cancelled) setErr(e instanceof Error ? e.message : String(e)); }
+      finally { if (!cancelled) setLoading(false); }
     })();
+    return () => {
+      cancelled = true;
+      mountedRef.current = false;
+    };
   }, [token, id]);
 
   const resolve = async (resolution: "resolved_approved" | "resolved_denied") => {
+    if (!mountedRef.current) return;
+    setBusy(true);
     setErr(null); setStatus(null);
     try {
       await resolveAdminClaim(token, id, {
         claim_type: resolution,
         admin_notes: reason.trim() || null,
       });
-      setStatus(`Claim ${resolution}.`);
-    } catch (e: unknown) { setErr(e instanceof Error ? e.message : String(e)); }
+      if (mountedRef.current) setStatus(`Claim ${resolution}.`);
+    } catch (e: unknown) { if (mountedRef.current) setErr(e instanceof Error ? e.message : String(e)); }
+    finally { if (mountedRef.current) setBusy(false); }
   };
 
   if (!id) return <p className="portal-error">Invalid claim ID.</p>;
   if (loading) return <p className="portal-status">Loading…</p>;
+  if (err) return <p className="portal-error">{err}</p>;
   if (!claim) return <p className="portal-error">Claim not found.</p>;
 
   return (
@@ -71,10 +85,10 @@ export default function ClaimDetailPage() {
                 <textarea className="portal-inp" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Optional notes…" />
               </div>
               <div className="portal-acts" style={{ marginTop: 12 }}>
-                <button type="button" className="portal-act" onClick={() => void resolve("resolved_approved")} style={{ background: "#166534", color: "#fff" }}>
+                <button type="button" className="portal-act" disabled={busy} onClick={() => void resolve("resolved_approved")} style={{ background: "#166534", color: "#fff" }}>
                   Approve & refund
                 </button>
-                <button type="button" className="portal-act" onClick={() => void resolve("resolved_denied")} style={{ background: "#991b1b", color: "#fff" }}>
+                <button type="button" className="portal-act" disabled={busy} onClick={() => void resolve("resolved_denied")} style={{ background: "#991b1b", color: "#fff" }}>
                   Deny
                 </button>
               </div>

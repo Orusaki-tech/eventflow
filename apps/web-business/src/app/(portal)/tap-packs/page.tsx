@@ -18,17 +18,20 @@ export default function TapPacksPage() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const reload = async () => {
-    try {
-      setTapStatus(await getTapStatus(token));
-    } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { void reload(); }, [token]);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const s = await getTapStatus(token);
+        if (!cancelled) setTapStatus(s);
+      } catch (e: unknown) {
+        if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
 
   const buy = async (plan: string) => {
     setErr(null); setStatus(null);

@@ -43,7 +43,7 @@ export function BusinessProfileViewScreen({ route }: Props) {
   const [err, setErr] = useState<string | null>(null);
   const [followBusy, setFollowBusy] = useState(false);
 
-   useEffect(() => {
+  useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
@@ -143,14 +143,18 @@ export function BusinessProfileViewScreen({ route }: Props) {
             </Pressable>
           ) : null}
           {profile.contact_email ? <AppText>✉ {profile.contact_email}</AppText> : null}
-          {profile.whatsapp_e164 ? (
-            <Pressable style={({ pressed }) => pressedOpacityStyle(pressed)} onPress={() => {
-              const url = whatsAppMeUrlFromE164(profile.whatsapp_e164!);
-              if (url) Linking.openURL(url);
-            }}>
-              <AppText style={{ color: colors.textPrimary }}>💬 Chat on WhatsApp</AppText>
-            </Pressable>
-          ) : null}
+          {(() => {
+            const wa = profile.whatsapp_e164;
+            if (!wa) return null;
+            return (
+              <Pressable style={({ pressed }) => pressedOpacityStyle(pressed)} onPress={() => {
+                const url = whatsAppMeUrlFromE164(wa);
+                if (url) Linking.openURL(url);
+              }}>
+                <AppText style={{ color: colors.textPrimary }}>💬 Chat on WhatsApp</AppText>
+              </Pressable>
+            );
+          })()}
         </Card>
       ) : null}
 

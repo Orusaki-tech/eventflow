@@ -29,3 +29,6 @@ httpx>=0.27
 # image fingerprinting (poster dedupe)
 Pillow>=10.0
 
+# monitoring
+prometheus-client>=0.21
+

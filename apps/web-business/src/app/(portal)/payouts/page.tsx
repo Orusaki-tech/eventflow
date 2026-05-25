@@ -43,7 +43,32 @@ export default function PayoutsPage() {
     }
   };
 
-  useEffect(() => { void reload(); }, [token]);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [s, p] = await Promise.all([
+          getPayoutSettings(token),
+          listPayouts(token),
+        ]);
+        if (!cancelled) {
+          setSettings(s);
+          setPayouts(p);
+          setMethod(s.payout_method);
+          setTill(s.mpesa_till_number ?? "");
+          setPaybill(s.mpesa_paybill_number ?? "");
+          setBankName(s.bank_name ?? "");
+          setFreq(s.payout_frequency);
+          setMinPayout(String(s.minimum_payout_minor));
+        }
+      } catch (e: unknown) {
+        if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
 
   const saveSettings = async () => {
     setErr(null); setStatus(null);

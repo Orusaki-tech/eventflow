@@ -4,7 +4,7 @@ import { IconArrowLeft, IconArrowRight, IconLink, IconSend } from "@tabler/icons
 import Link from "next/link";
 import { useState } from "react";
 import { usePortalAuth } from "@/components/portal/portal-auth-context";
-import { putListingShareAlias, shareUrl, upsertCommunityListing, type ShareUrlResult } from "@/lib/eventflow-api";
+import { mediaUrl, putListingShareAlias, shareUrl, upsertCommunityListing, type ShareUrlResult } from "@/lib/eventflow-api";
 
 export default function ImportListingPage() {
   const { token } = usePortalAuth();
@@ -46,7 +46,7 @@ export default function ImportListingPage() {
     setBusy(true);
     try {
       const iso = new Date(startLocal).toISOString();
-      const posterUri = parsed?.poster_asset_id ? `/api/v1/media/poster/${parsed.poster_asset_id}` : null;
+      const posterUri = parsed?.poster_asset_id ? mediaUrl(parsed.poster_asset_id, "poster") : null;
       const listing = await upsertCommunityListing(token, {
         source: "imported",
         title: title.trim(),
@@ -66,7 +66,7 @@ export default function ImportListingPage() {
   };
 
   const posterSrc = parsed?.poster_asset_id
-    ? `/api/v1/media/poster/${parsed.poster_asset_id}`
+    ? mediaUrl(parsed.poster_asset_id, "poster")
     : null;
 
   return (

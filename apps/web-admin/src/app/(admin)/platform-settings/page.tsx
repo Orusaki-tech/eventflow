@@ -12,17 +12,22 @@ export default function PlatformSettingsPage() {
   const [err, setErr] = useState<string | null>(null);
   const [editKey, setEditKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  const reload = async () => {
-    setLoading(true); setErr(null);
-    try { setSettings(await listPlatformSettings(token)); }
-    catch (e: unknown) { setErr(e instanceof Error ? e.message : String(e)); }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => { void reload(); }, [token]);
+  useEffect(() => {
+    let cancelled = false;
+    const reload = async () => {
+      setLoading(true); setErr(null);
+      try { if (!cancelled) setSettings(await listPlatformSettings(token)); }
+      catch (e: unknown) { if (!cancelled) setErr(e instanceof Error ? e.message : String(e)); }
+      finally { if (!cancelled) setLoading(false); }
+    };
+    void reload();
+    return () => { cancelled = true; };
+  }, [token]);
 
   const save = async (key: string) => {
+    setSaving(true);
     setErr(null); setStatus(null);
     try {
       let parsed: Record<string, unknown>;
@@ -33,6 +38,7 @@ export default function PlatformSettingsPage() {
       setEditKey(null);
       await reload();
     } catch (e: unknown) { setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setSaving(false); }
   };
 
   if (loading) return <p className="portal-status">Loading…</p>;
@@ -65,7 +71,7 @@ export default function PlatformSettingsPage() {
                 <div>
                   <textarea className="portal-inp" rows={6} value={editValue} onChange={(e) => setEditValue(e.target.value)} style={{ fontSize: 11, fontFamily: "var(--font-mono)" }} />
                   <div className="portal-acts" style={{ marginTop: 8 }}>
-                    <button type="button" className="portal-act" onClick={() => void save(s.key)}>Save</button>
+                    <button type="button" className="portal-act" disabled={saving} onClick={() => void save(s.key)}>Save</button>
                   </div>
                 </div>
               ) : (

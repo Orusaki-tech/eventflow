@@ -21,7 +21,20 @@ export default function FeedVideosPage() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { void reload(); }, [token]);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const v = await listMyFeedVideos(token);
+        if (!cancelled) setVideos(v);
+      } catch (e: unknown) {
+        if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
 
   const publish = async () => {
     setErr(null); setStatus(null);

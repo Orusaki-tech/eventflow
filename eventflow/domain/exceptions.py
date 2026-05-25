@@ -17,3 +17,7 @@ class PermissionDenied(DomainError):
 class InvariantViolation(DomainError):
     pass
 
+
+class EventNotFound(DomainError):
+    pass
+

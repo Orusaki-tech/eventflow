@@ -12,6 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from eventflow.adapters.monitoring import PrometheusMiddleware, metrics_handler
 from eventflow.api.errors import domain_error_handler
 from eventflow.domain.exceptions import DomainError
 from eventflow.entrypoints.api.routes import (
@@ -117,6 +118,9 @@ def create_app() -> FastAPI:
     app = FastAPI(title="EventFlow", version="1.0.0", lifespan=_lifespan)
 
     _install_middleware(app)
+
+    app.add_middleware(PrometheusMiddleware)
+    app.add_api_route("/metrics", endpoint=metrics_handler, include_in_schema=False)
 
     @app.exception_handler(DomainError)
     async def _domain_error(request: Request, exc: DomainError):

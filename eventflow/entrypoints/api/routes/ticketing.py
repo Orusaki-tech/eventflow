@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import secrets
 from datetime import datetime, timezone
-from decimal import Decimal
 from uuid import UUID, uuid4
 
 import calendar
@@ -44,11 +43,9 @@ from eventflow.entrypoints.api.schemas import (
     ProductEventLinkRequest,
     ProductEventLinkResponse,
     ProductResponse,
-    PurchaseItem,
     PurchaseRequest,
     PurchaseResponse,
     RedeemPointsRequest,
-    ReferralLinkResponse,
     SalesDetailRow,
     SubscriptionResponse,
     TapPackBuyRequest,
@@ -56,13 +53,11 @@ from eventflow.entrypoints.api.schemas import (
     TicketLookupResponse,
     TicketResendResponse,
     TicketTypeBulkRequest,
-    TicketTypeBulkRow,
     TicketTypeResponse,
     VideoModerationRequest,
     WatchQuotaResponse,
 )
 from eventflow.entrypoints.dependencies import get_current_user_id, get_session, require_admin_user
-from eventflow.service_layer import views
 
 router = APIRouter(tags=["Ticketing"])
 
@@ -94,7 +89,7 @@ def _get_platform_setting(session, key: str) -> dict:
         text("SELECT value FROM platform_settings WHERE key = :k LIMIT 1"),
         {"k": key},
     ).first()
-    return dict(row[0]) if row else {}
+    return dict(row[0]) if row and row[0] else {}
 
 
 def _generate_short_code() -> str:
@@ -172,10 +167,10 @@ async def bulk_set_ticket_types(
                 text(
                     """
                     UPDATE ticket_types SET is_active = false, updated_at = :now
-                    WHERE community_event_id = :ce AND id NOT IN :keep
+                    WHERE community_event_id = :ce AND id != ALL(:keep)
                     """
                 ),
-                {"ce": str(community_event_id), "keep": tuple(keep_ids), "now": now},
+                {"ce": str(community_event_id), "keep": keep_ids, "now": now},
             )
     else:
         session.execute(
@@ -800,7 +795,6 @@ async def buy_tap_pack(
         raise HTTPException(status_code=400, detail=f"Unknown plan: {body.plan}")
 
     taps = plan_info.get("taps")
-    price = plan_info["price_minor"]
 
     if body.plan == "unlimited":
         session.execute(
@@ -837,6 +831,16 @@ async def publish_feed_video(
     ).first()
     if biz is None:
         raise HTTPException(status_code=404, detail="Business not found")
+
+    if body.community_event_id:
+        attached = session.execute(
+            text(
+                "SELECT 1 FROM business_listing_attachments WHERE community_event_id = :ce AND business_id = :bid LIMIT 1"
+            ),
+            {"ce": str(body.community_event_id), "bid": str(biz[0])},
+        ).first()
+        if attached is None:
+            raise HTTPException(status_code=403, detail="Event not attached to your business")
 
     vid = uuid4()
     now = datetime.now(timezone.utc)
@@ -1161,13 +1165,20 @@ async def link_product_to_event(
         {"uid": event_owner[0]},
     ).first()
 
-    # Verify product belongs to requester
+    # Verify product belongs to requester's business
     product = session.execute(
         text("SELECT id, business_id FROM products WHERE id = :pid LIMIT 1"),
         {"pid": str(body.product_id)},
     ).first()
     if product is None:
         raise HTTPException(status_code=404, detail="Product not found")
+
+    product_biz = session.execute(
+        text("SELECT owner_user_id FROM businesses WHERE id = :bid LIMIT 1"),
+        {"bid": str(product[1])},
+    ).first()
+    if product_biz is None or product_biz[0] != user_id:
+        raise HTTPException(status_code=403, detail="Not your product")
 
     # Auto-approve if the product owner is also the event owner
     status_val = "approved" if (owner_biz and product[1] == owner_biz[0]) else "pending"

@@ -40,7 +40,6 @@ def get_session_factory():
     return sessionmaker(bind=engine, future=True, expire_on_commit=False)
 
 
-@lru_cache
 def _get_local_fake_uow() -> FakeUnitOfWork:
     # When DB_URL is not configured (common in local/dev), keep a single in-memory
     # unit-of-work so confirmed events show up in subsequent list calls.
@@ -224,7 +223,10 @@ _log = logging.getLogger(__name__)
 def _redis_is_healthy(redis_url: str) -> bool:
     try:
         r = redis.Redis.from_url(redis_url)
-        return bool(r.ping())
+        try:
+            return bool(r.ping())
+        finally:
+            r.close()
     except Exception:
         return False
 

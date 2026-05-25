@@ -1,0 +1,98 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+env:
+  REGION: us-central1
+  ARTIFACT_REGISTRY_REPO: eventflow
+  IMAGE_NAME: api
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
+
+      - name: Resolve image tag
+        shell: bash
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          echo "IMAGE_TAG=${REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${ARTIFACT_REGISTRY_REPO}/${IMAGE_NAME}:${SHA}" >> $GITHUB_ENV
+
+      - name: Deploy to GCE VM
+        run: |
+          gcloud compute ssh ${{ vars.VM_NAME }} \
+            --zone ${{ vars.ZONE }} \
+            --quiet \
+            --command "
+              set -e
+
+              cd /opt/eventflow
+
+              # Pull secrets from Secret Manager into .env
+              sudo bash -c '
+                : > /opt/eventflow/.env
+                chmod 600 /opt/eventflow/.env
+                for secret in \$(gcloud secrets list --filter=\"labels.service=eventflow\" --format=\"value(name)\" 2>/dev/null); do
+                  key=\$(echo \"\$secret\" | sed \"s/^eventflow-//\" | tr '[:lower:]' '[:upper:]')
+                  val=\$(gcloud secrets versions access latest --secret=\"\$secret\" 2>/dev/null || true)
+                  if [ -n \"\$val\" ]; then
+                    echo \"\$key=\$val\" >> /opt/eventflow/.env
+                  fi
+                done
+              '
+
+              # Pull the pre-built image from Artifact Registry
+              export IMAGE_TAG=${{ env.IMAGE_TAG }}
+              sudo docker compose pull
+
+              # Start the stack
+              sudo docker compose up -d --remove-orphans
+
+              # Run migrations
+              for i in \$(seq 1 5); do
+                sudo docker compose exec -T api alembic upgrade head && break
+                echo 'alembic attempt '\$i' failed, retrying…'
+                sleep 5
+              done
+            "
+
+      - name: Health check
+        shell: bash
+        run: |
+          DOMAIN="${{ vars.DOMAIN }}"
+          if [ -n "${DOMAIN}" ]; then
+            URL="https://${DOMAIN}/api/v1/healthz"
+          else
+            IP=$(gcloud compute instances describe ${{ vars.VM_NAME }} \
+              --zone ${{ vars.ZONE }} \
+              --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+            URL="http://${IP}:8000/api/v1/healthz"
+          fi
+          for i in $(seq 1 20); do
+            if curl -fsS --max-time 3 "${URL}" >/dev/null 2>&1; then
+              echo "✓ API healthy at ${URL}"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "WARN: health check failed after ~60s" >&2
+          exit 1

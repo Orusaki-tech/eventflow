@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from eventflow.domain import commands, events as domain_events
+from eventflow.domain import commands
 from eventflow.domain.exceptions import InvariantViolation, PastEventError
 from eventflow.domain.model import AlertType, ScheduledEvent
 from eventflow.service_layer import messagebus

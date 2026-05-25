@@ -12,8 +12,12 @@ export default function SettingsPage() {
     : (process.env.NEXT_PUBLIC_EVENTFLOW_API_URL ?? "http://localhost:8000");
 
   const signOut = async () => {
-    const supabase = createSupabaseBrowserClient();
-    await supabase.auth.signOut();
+    try {
+      const supabase = createSupabaseBrowserClient();
+      await supabase.auth.signOut();
+    } catch (e: unknown) {
+      console.error("signOut failed", e);
+    }
     router.replace("/login");
     router.refresh();
   };

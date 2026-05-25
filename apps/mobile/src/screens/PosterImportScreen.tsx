@@ -2,7 +2,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useState } from "react";
 import { Alert, TextInput, View } from "react-native";
-import { sharePoster } from "../api/eventflow";
+import { EventflowApiError, sharePoster } from "../api/eventflow";
 import { useAuth } from "../auth/AuthContext";
 import { saveDraftPosterAssetId, saveDraftSourceUrl } from "../lib/thumbnail";
 import type { RootStackParamList } from "../navigation/types";
@@ -78,10 +78,10 @@ export function PosterImportScreen({ navigation }: Props) {
       });
     } catch (e: unknown) {
       // If auth expired, retry once after refresh.
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("401")) {
+      if (e instanceof EventflowApiError && e.status === 401) {
         await refreshSession().catch(() => undefined);
       }
+      const msg = e instanceof Error ? e.message : String(e);
       Alert.alert("Upload failed", msg);
     } finally {
       setBusy(false);

@@ -404,6 +404,9 @@ async def share_url(
             _url_parse_log_key(body.url),
         )
 
+    # Release the lock before the slow Gemini call so concurrent requests are not blocked.
+    cache.release_lock(url=body.url, owner=owner)
+
     try:
         _log.info(
             "share_url_parse gemini_invoke url_key=%s",
@@ -680,6 +683,9 @@ async def share_media(
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"AI parsing failed: {type(e).__name__}: {e}")
 
     if ct.startswith("video/"):
+        MAX_VIDEO_BYTES = 50 * 1024 * 1024
+        if len(raw) > MAX_VIDEO_BYTES:
+            raise HTTPException(status_code=413, detail="Video too large")
         # Durable store (filesystem) + create a minimal draft. Video parsing can be added later.
         base = Path(get_settings().poster_storage_dir).expanduser().resolve()
         vdir = base / "videos"

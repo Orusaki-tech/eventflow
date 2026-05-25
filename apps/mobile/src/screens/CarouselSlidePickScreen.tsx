@@ -8,6 +8,7 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Pressable,
+  useWindowDimensions,
   View,
 } from "react-native";
 import {
@@ -31,7 +32,8 @@ export function CarouselSlidePickScreen({ navigation, route }: Props) {
   const { apiBaseUrl, accessToken, refreshSession } = useAuth();
   const { rawText, instagramUrl } = route.params;
 
-  const metrics = useMemo(() => carouselPickMetrics(Dimensions.get("window").width), []);
+  const { width: windowWidth } = useWindowDimensions();
+  const metrics = useMemo(() => carouselPickMetrics(windowWidth), [windowWidth]);
 
   const styles = useThemedStyles((c) => ({
     root: { flex: 1, backgroundColor: c.bg },
@@ -76,32 +78,40 @@ export function CarouselSlidePickScreen({ navigation, route }: Props) {
   /** Sorted unique slide indices (max 2 when multi-slide). */
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (cancelledRef?: { current: boolean }) => {
+    const cancelled = () => cancelledRef?.current === true;
     setLoading(true);
     setFetchError(null);
     try {
       const res = await postInstagramCarouselPreview(apiBaseUrl, accessToken, instagramUrl);
+      if (cancelled()) return;
       setSlides(res.slides);
       if (res.slides.length === 1) {
+        if (cancelled()) return;
         setSelectedIndices([res.slides[0]!.slide_index]);
       } else {
+        if (cancelled()) return;
         setSelectedIndices([]);
       }
     } catch (e: unknown) {
+      if (cancelled()) return;
       if (e instanceof EventflowApiError && e.status === 401) {
         await refreshSession().catch(() => undefined);
       }
+      if (cancelled()) return;
       const msg = e instanceof EventflowApiError ? e.message : e instanceof Error ? e.message : String(e);
       setFetchError(msg);
       setSlides([]);
       setSelectedIndices([]);
     } finally {
-      setLoading(false);
+      if (!cancelled()) setLoading(false);
     }
   }, [accessToken, apiBaseUrl, instagramUrl, refreshSession]);
 
   useEffect(() => {
-    void load();
+    const cancelledRef = { current: false };
+    void load(cancelledRef);
+    return () => { cancelledRef.current = true; };
   }, [load]);
 
   const snapToOffsets = useMemo(

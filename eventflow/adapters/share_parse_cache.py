@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from typing import Any, Optional
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import redis
@@ -124,6 +123,13 @@ class ShareParseCache:
         # NX + EX: lock key exists only while work is in progress.
         return bool(self._r.set(self._lock_key(normalized), owner.encode("utf-8"), nx=True, ex=self._lock_ttl))
 
+    def release_lock(self, *, url: str, owner: str) -> None:
+        normalized = normalize_shared_url(url)
+        lock_key = self._lock_key(normalized)
+        current = self._r.get(lock_key)
+        if current and current.decode("utf-8") == owner:
+            self._r.delete(lock_key)
+
 
 class NoOpShareParseCache:
     def get(self, *, url: str) -> CachedParsedDraft | None:  # pragma: no cover
@@ -134,4 +140,7 @@ class NoOpShareParseCache:
 
     def try_acquire_lock(self, *, url: str, owner: str) -> bool:  # pragma: no cover
         return True
+
+    def release_lock(self, *, url: str, owner: str) -> None:  # pragma: no cover
+        pass
 

@@ -20,12 +20,12 @@ __pycache__/
 dist/
 build/
 
-# Virtualenvs (these are huge and never belong in an image)
+# Virtualenvs
 venv/
 venv.*/
 .venv/
 
-# Local data the API writes at runtime — gets baked as state otherwise
+# Local data
 data/
 *.sqlite
 *.sqlite3
@@ -35,10 +35,19 @@ data/
 .DS_Store
 Thumbs.db
 
-# Frontend / mobile workspace (not part of the API image)
+# Frontend / mobile (not part of API image)
 apps/
-deploy/
 
-# Docs / misc
+# Infra / deploy
+deploy/
+terraform/
+.github/
+
+# Monitoring config (not needed in API image)
+Caddyfile
+prometheus.yml
+grafana/
+
+# Docs
 README.md
 *.md

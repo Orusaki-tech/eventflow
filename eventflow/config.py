@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     supabase_jwt_issuer: Optional[str] = Field(default=None, alias="SUPABASE_JWT_ISSUER")
 
     gemini_api_key: Optional[str] = Field(default=None, alias="GEMINI_API_KEY")
-    gemini_model: str = Field(default="gemini-2.0-flash", alias="GEMINI_MODEL")
+    gemini_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL")
     google_maps_api_key: Optional[str] = Field(default=None, alias="GOOGLE_MAPS_API_KEY")
     google_calendar_credentials_json: Optional[str] = Field(
         default=None, alias="GOOGLE_CALENDAR_CREDENTIALS_JSON"

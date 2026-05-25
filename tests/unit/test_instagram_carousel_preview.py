@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from unittest.mock import patch
 
 from eventflow.adapters import media_extractor
 from eventflow.service_layer.handlers import instagram_carousel_preview_slide_bytes

@@ -117,10 +117,10 @@ export function ManualVenueScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    void Location.getLastKnownPositionAsync({}).then((p) => {
+    Location.getLastKnownPositionAsync({}).then((p) => {
       if (cancelled || !p?.coords) return;
       setSearchBias({ lat: p.coords.latitude, lng: p.coords.longitude });
-    });
+    }).catch(() => undefined);
     return () => {
       cancelled = true;
     };

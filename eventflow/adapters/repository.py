@@ -136,7 +136,7 @@ class FakeDraftRepository(AbstractDraftRepository):
 class FakeUserLocationRepository(AbstractUserLocationRepository):
     def __init__(self, locations: Iterable[UserLocation] = ()) -> None:
         super().__init__()
-        self._locations: Dict[tuple[UUID, str], UserLocation] = {(l.user_id, l.label): l for l in locations}
+        self._locations: Dict[tuple[UUID, str], UserLocation] = {(loc.user_id, loc.label): loc for loc in locations}
 
     def _upsert(self, loc: UserLocation) -> None:
         self._locations[(loc.user_id, loc.label)] = loc
@@ -507,10 +507,14 @@ class OutboxMessage:
     locked_at: datetime | None = None
     locked_by: str | None = None
 
+    def __hash__(self) -> int:
+        return hash(self.id)
+
 
 class AbstractOutboxRepository(AbstractRepository, abc.ABC):
     def add(self, msg: OutboxMessage) -> None:
         self._add(msg)
+        self.seen.add(msg)
 
     def list_unpublished(self, *, limit: int = 100) -> list[OutboxMessage]:
         return self._list_unpublished(limit=limit)

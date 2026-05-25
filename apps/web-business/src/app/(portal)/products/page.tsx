@@ -22,7 +22,20 @@ export default function ProductsPage() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { void reload(); }, [token]);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const p = await listMyProducts(token);
+        if (!cancelled) setProducts(p);
+      } catch (e: unknown) {
+        if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
 
   const add = async () => {
     setErr(null); setStatus(null);

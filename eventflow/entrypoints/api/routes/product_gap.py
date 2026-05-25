@@ -131,6 +131,7 @@ async def patch_business(
         wa = body.whatsapp_e164.strip()
         sets.append("whatsapp_e164 = :wa")
         params["wa"] = wa if wa else None
+    _allowed_columns = {"description", "logo_url", "website", "contact_email", "name", "whatsapp_e164"}
     for col, val in (
         ("description", body.description),
         ("logo_url", body.logo_url),
@@ -138,6 +139,8 @@ async def patch_business(
         ("contact_email", body.contact_email),
     ):
         if val is not None:
+            if col not in _allowed_columns:
+                raise HTTPException(status_code=400, detail=f"Unknown column: {col}")
             sets.append(f"{col} = :{col}")
             params[col] = val.strip() if isinstance(val, str) else val
     if not sets:
@@ -211,13 +214,13 @@ async def list_followed_businesses(
 
 
 @router.get("/businesses/{business_id}", status_code=status.HTTP_200_OK, response_model=BusinessResponse)
-async def get_business(business_id: UUID, session=Depends(get_session)):
+async def get_business(business_id: UUID, user_id=Depends(get_current_user_id), session=Depends(get_session)):
     if session is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
     row = session.execute(
         text(
             """
-            SELECT id, name, whatsapp_e164, verified
+            SELECT id, name, whatsapp_e164, verified, owner_user_id
             FROM businesses WHERE id = :id LIMIT 1
             """
         ),
@@ -225,10 +228,11 @@ async def get_business(business_id: UUID, session=Depends(get_session)):
     ).first()
     if row is None:
         raise HTTPException(status_code=404, detail="Business not found")
+    whatsapp = row[2] if row[4] == user_id else None
     return BusinessResponse(
         business_id=row[0],
         name=row[1],
-        whatsapp_e164=row[2],
+        whatsapp_e164=whatsapp,
         verified=bool(row[3]),
     )
 

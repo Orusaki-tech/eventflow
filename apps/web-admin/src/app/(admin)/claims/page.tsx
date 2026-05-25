@@ -17,7 +17,7 @@ export default function AdminClaimsPage() {
     void (async () => {
       setLoading(true); setErr(null);
       try {
-        const res = await listAdminClaims(token, { limit: 50 });
+        const res = await listAdminClaims(token, { limit: 500 });
         if (!cancelled) setClaims(res);
       } catch (e: unknown) {
         if (!cancelled) setErr(e instanceof Error ? e.message : String(e));

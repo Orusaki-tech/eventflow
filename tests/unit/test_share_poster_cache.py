@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-import pytest
 from PIL import Image
 from starlette.datastructures import UploadFile
 from starlette.datastructures import Headers

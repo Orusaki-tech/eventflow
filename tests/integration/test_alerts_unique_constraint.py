@@ -36,8 +36,8 @@ def test_alerts_unique_constraint_one_per_event_and_type():
         session.add(evt)
         session.commit()
 
-        a1 = Alert(alert_type=AlertType.REMINDER, trigger_at=start_time - timedelta(minutes=30), message="m1")
-        a2 = Alert(alert_type=AlertType.REMINDER, trigger_at=start_time - timedelta(minutes=10), message="m2")
+        a1 = Alert(event_id=event_id, alert_type=AlertType.REMINDER, trigger_at=start_time - timedelta(minutes=30), message="m1")
+        a2 = Alert(event_id=event_id, alert_type=AlertType.REMINDER, trigger_at=start_time - timedelta(minutes=10), message="m2")
 
         evt.alerts.append(a1)
         session.commit()

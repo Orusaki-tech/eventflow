@@ -68,7 +68,7 @@ export default function ListingDetailPage() {
         quantity_available: t.quantity_available != null ? String(t.quantity_available) : "",
         description: t.description ?? "",
       })));
-    } else if (ttEditor.length === 0) {
+    } else {
       setTtEditor([{ name: "", price_minor_units: "", quantity_available: "", description: "" }]);
     }
   }, [token, id]);
@@ -443,12 +443,26 @@ export default function ListingDetailPage() {
             <button type="button" className="portal-act"
               onClick={() => {
                 const types = ttEditor.filter(t => t.name.trim() && t.price_minor_units.trim());
+                for (const t of types) {
+                  const price = parseFloat(t.price_minor_units);
+                  if (isNaN(price) || price < 0) {
+                    setErr(`Invalid price "${t.price_minor_units}" for "${t.name}"`);
+                    return;
+                  }
+                  if (t.quantity_available.trim()) {
+                    const qty = parseInt(t.quantity_available, 10);
+                    if (isNaN(qty) || qty < 0) {
+                      setErr(`Invalid quantity "${t.quantity_available}" for "${t.name}"`);
+                      return;
+                    }
+                  }
+                }
                 void run(async () => {
                   await bulkSetTicketTypes(token, id, types.map(t => ({
                     ticket_type_id: t.ticket_type_id || null,
                     name: t.name.trim(),
-                    price_minor_units: parseInt(t.price_minor_units) || 0,
-                    quantity_available: t.quantity_available.trim() ? parseInt(t.quantity_available) || null : null,
+                    price_minor_units: parseFloat(t.price_minor_units),
+                    quantity_available: t.quantity_available.trim() ? parseInt(t.quantity_available, 10) : null,
                     description: t.description.trim() || null,
                   })));
                 });

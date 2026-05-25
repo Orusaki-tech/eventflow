@@ -1,13 +1,21 @@
 from __future__ import annotations
 
 import base64
+import os
 from uuid import UUID, uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 
 from eventflow.entrypoints.fastapi_app import create_app
 from eventflow.entrypoints import dependencies
 from eventflow.service_layer.unit_of_work import FakeUnitOfWork
+
+
+pytestmark = pytest.mark.skipif(
+    not os.environ.get("EVENTFLOW_E2E_TESTS"),
+    reason="set EVENTFLOW_E2E_TESTS=1 to run e2e tests that call external APIs",
+)
 
 
 def test_capture_and_confirm_flow_in_memory():

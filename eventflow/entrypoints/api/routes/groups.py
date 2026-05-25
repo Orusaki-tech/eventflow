@@ -258,7 +258,7 @@ async def pin_group_event(
         # Validate: if event_id is set, it must belong to this group
         if body.event_id:
             event_row = uow.session.execute(  # type: ignore[attr-defined]
-                text("SELECT 1 FROM group_events WHERE id = :e AND group_id = :g LIMIT 1"),
+                text("SELECT 1 FROM event_shares WHERE event_id = :e AND group_id = :g LIMIT 1"),
                 {"e": str(body.event_id), "g": str(group_id)},
             ).first()
             if event_row is None:

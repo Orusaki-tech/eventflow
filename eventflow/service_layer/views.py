@@ -213,11 +213,15 @@ def list_drafts(
             for d in drafts[: int(limit)]
         ]
 
+    if status is not None and status not in {"pending", "confirmed"}:
+        raise ValueError(f"Invalid status: {status!r}")
     where_confirmed = ""
     if status == "pending":
         where_confirmed = "AND d.confirmed_at IS NULL"
     elif status == "confirmed":
         where_confirmed = "AND d.confirmed_at IS NOT NULL"
+    else:
+        where_confirmed = ""
 
     results = session.execute(
         text(
@@ -241,7 +245,7 @@ def list_drafts(
     return [dict(r._mapping) for r in results]
 
 
-def list_community_events(*, session: Any, limit: int = 50) -> List[dict]:
+def list_community_events(*, session: Any, user_id: UUID | None = None, limit: int = 50) -> List[dict]:
     results = session.execute(
         text(
             """
@@ -265,11 +269,12 @@ def list_community_events(*, session: Any, limit: int = 50) -> List[dict]:
               ORDER BY ev.created_at ASC
               LIMIT 1
             ) v ON TRUE
+            WHERE e.visibility = 'public' OR (:uid IS NOT NULL AND e.user_id = :uid::uuid)
             ORDER BY e.start_time DESC
             LIMIT :limit
             """
         ),
-        {"limit": int(limit)},
+        {"uid": str(user_id) if user_id else None, "limit": int(limit)},
     )
     return [dict(r._mapping) for r in results]
 

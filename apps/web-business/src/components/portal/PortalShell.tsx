@@ -101,8 +101,12 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   }, [emailHint]);
 
   const onSignOut = async () => {
-    const supabase = createSupabaseBrowserClient();
-    await supabase.auth.signOut();
+    try {
+      const supabase = createSupabaseBrowserClient();
+      await supabase.auth.signOut();
+    } catch (e: unknown) {
+      console.error("signOut failed", e);
+    }
     router.replace("/login");
     router.refresh();
   };

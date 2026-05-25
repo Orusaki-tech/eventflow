@@ -9,6 +9,7 @@ import {
   EventflowApiError,
   getFollowBusiness,
   getListingCarousel,
+  listFollowing,
   postBillingCheckoutStub,
   postFollowBusiness,
   postFollowUser,
@@ -98,12 +99,12 @@ export function CommunityListingDetailScreen({ route }: Props) {
         const [res, followRes, userFollowRes] = await Promise.all([
           getListingCarousel(apiBaseUrl, accessToken, communityEventId),
           business_id && accessToken ? getFollowBusiness(apiBaseUrl, accessToken, business_id) : Promise.resolve(null),
-          organizerUserId && accessToken ? getFollowBusiness(apiBaseUrl, accessToken, organizerUserId) : Promise.resolve(null),
+          organizerUserId && accessToken ? listFollowing(apiBaseUrl, accessToken) : Promise.resolve(null),
         ]);
         if (!cancelled) {
           setSlides(res.slides ?? []);
           if (followRes) setBizFollowing(followRes.following);
-          if (userFollowRes) setFollowing(userFollowRes.following);
+          if (userFollowRes) setFollowing(userFollowRes.some((f) => f.following_user_id === organizerUserId));
         }
       } catch (e: unknown) {
         if (!cancelled) {
@@ -287,7 +288,7 @@ export function CommunityListingDetailScreen({ route }: Props) {
           <Button
             label="View profile"
             variant="outline"
-            onPress={() => navigationRef.navigate("BusinessProfileView", { businessId: business_id! })}
+            onPress={() => { if (!business_id) return; navigationRef.navigate("BusinessProfileView", { businessId: business_id }); }}
             fullWidth
           />
         </View>

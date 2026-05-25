@@ -48,11 +48,12 @@ def _vector_literal(vec: list[float]) -> str:
 @router.get("/discovery/feed", status_code=status.HTTP_200_OK)
 async def discovery_feed(
     limit: int = Query(default=50, ge=1, le=200),
+    user_id=Depends(get_current_user_id),
     session=Depends(get_session),
 ):
     if session is None:
         return []
-    return views.list_community_events(session=session, limit=limit)
+    return views.list_community_events(session=session, user_id=user_id, limit=limit)
 
 
 @router.get("/discovery/search", status_code=status.HTTP_200_OK)

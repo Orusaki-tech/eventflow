@@ -166,6 +166,13 @@ export async function shareUrl(token: string, url: string): Promise<ShareUrlResu
   return efFetch("/api/v1/share/url", token, { method: "POST", json: { url } });
 }
 
+/** Construct a media URL that respects the API proxy prefix. */
+export function mediaUrl(assetId: string, kind: "poster"): string {
+  const origin = process.env.NEXT_PUBLIC_EVENTFLOW_API_PROXY === "1" ? "" : (process.env.NEXT_PUBLIC_EVENTFLOW_API_URL ?? "http://localhost:8000");
+  const prefix = process.env.NEXT_PUBLIC_EVENTFLOW_API_PROXY === "1" ? "/api/eventflow" : "";
+  return `${origin}${prefix}/api/v1/media/${kind}/${encodeURIComponent(assetId)}`;
+}
+
 export async function deleteListingShareAlias(token: string, communityEventId: string, url: string): Promise<void> {
   const q = encodeURIComponent(url);
   await efFetch(

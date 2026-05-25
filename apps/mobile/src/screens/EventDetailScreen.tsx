@@ -105,6 +105,9 @@ export function EventDetailScreen({ navigation, route }: Props) {
   const ownerUserId = route.params.ownerUserId;
   const initialPrice = route.params.price ?? null;
   const [sharedUrl, setSharedUrl] = useState<string | null>(initialSharedUrl ?? null);
+  // TODO: Fetch description and audience from API on mount.
+  // Currently there is no individual event detail GET endpoint that returns these fields.
+  // Without fetching, saving will overwrite server values with these defaults.
   const [audience, setAudience] = useState<"public" | "close_friends">("public");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);

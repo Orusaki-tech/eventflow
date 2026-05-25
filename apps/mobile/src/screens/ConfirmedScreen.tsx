@@ -131,7 +131,7 @@ export function ConfirmedScreen({ navigation, route }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [accessToken, apiBaseUrl, refreshSession, tzOffsetMinutes]);
+  }, [accessToken, apiBaseUrl, eventId, refreshSession, tzOffsetMinutes]);
 
   useEffect(() => {
     let cancelled = false;
