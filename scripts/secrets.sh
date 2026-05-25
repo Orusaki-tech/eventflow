@@ -87,18 +87,46 @@ fetch() {
   done
 }
 
+validate() {
+  TEMPLATE=".env.example"
+  if [[ ! -f "${TEMPLATE}" ]]; then
+    echo "FATAL: Missing template file ${TEMPLATE} (should be checked in)." >&2
+    exit 7
+  fi
+  if [[ ! -f "${ENV_FILE}" ]]; then
+    echo "Missing ENV_FILE ${ENV_FILE}">&2
+    exit 2
+  fi
+  MISSING=0
+  KEYS=$(grep -E '^[A-Z_][A-Z0-9_]*=' "${TEMPLATE}" | sed 's/=.*//')
+  for key in $KEYS; do
+    if ! grep -qE "^$key=" "${ENV_FILE}"; then
+      echo "[MISSING] $key"
+      MISSING=1
+    fi
+  done
+  if [[ "$MISSING" == "1" ]]; then
+    echo "ERROR: One or more required variables are missing from ${ENV_FILE}."
+    exit 4
+  else
+    echo "All required environment variables are present in ${ENV_FILE}."
+  fi
+}
+
 case "${cmd}" in
   create) create ;;
   delete) delete ;;
   list)   list ;;
   fetch)  fetch ;;
+  validate) validate ;;
   *)
-    echo "Usage: $0 {create|delete|list|fetch}"
+    echo "Usage: $0 {create|delete|list|fetch|validate}"
     echo ""
     echo "  create   - create/update all secrets from ENV_FILE (default: deploy/gcp/.env.production)"
     echo "  delete   - delete all EventFlow secrets"
     echo "  list     - list all EventFlow secrets"
     echo "  fetch    - print all secrets as KEY=VALUE format"
+    echo "  validate - check that all required keys (from .env.example) are set in ENV_FILE"
     exit 1
     ;;
 esac

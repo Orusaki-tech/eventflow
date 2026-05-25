@@ -110,6 +110,24 @@ fi
 
 echo "==> Pulling image ${IMAGE_TAG} and starting stack…"
 remote "cd ${REMOTE_DIR} && \
+  if [ ! -f .env ]; then echo 'FATAL: .env missing after secrets population'; exit 2; fi; \
+  MISSING=0; \
+  for key in DB_URL DB_HOST DB_PORT DB_NAME DB_USER DB_PASSWORD DB_QUERY \
+    REDIS_URL ENV LOG_LEVEL ADMIN_OPERATOR_EMAILS ADMIN_USER_IDS ADMIN_API_TOKEN \
+    CORS_ALLOW_ORIGINS TRUSTED_HOSTS SUPABASE_JWKS_URL SUPABASE_JWT_AUDIENCE SUPABASE_JWT_ISSUER \
+    GEMINI_API_KEY GOOGLE_MAPS_API_KEY GOOGLE_CALENDAR_CREDENTIALS_JSON CALENDAR_TOKEN_KEY \
+    GOOGLE_OAUTH_REDIRECT_URI EXPO_ACCESS_TOKEN GRAFANA_ADMIN_PASSWORD; do \
+    if ! grep -qE "^$key=['\"]?.\+['\"]?$" .env; then echo "[MISSING] $key"; MISSING=1; fi; \
+  done; \
+  if [ $MISSING = 1 ]; then echo 'FATAL: Missing required env vars in .env. See above.'; cat .env; exit 3; fi"
+
+if [[ -z "${IMAGE_TAG}" ]]; then
+  echo "FATAL: IMAGE_TAG must be set and non-empty. Aborting." >&2
+  exit 9
+fi
+
+echo "==> Pulling image ${IMAGE_TAG} and starting stack..."
+remote "cd ${REMOTE_DIR} && \
   export IMAGE_TAG=${IMAGE_TAG} && \
   sudo docker compose pull && \
   sudo docker compose up -d --remove-orphans"

@@ -21,6 +21,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Validate .env.production
+        run: |
+          if [ ! -f deploy/gcp/.env.production ]; then cp .env.example deploy/gcp/.env.production; fi
+          bash scripts/secrets.sh validate
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
