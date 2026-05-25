@@ -6,14 +6,18 @@
 #   bash scripts/secrets.sh delete   # remove all secrets (irreversible!)
 #   bash scripts/secrets.sh list     # list all EventFlow secrets and versions
 #   bash scripts/secrets.sh fetch    # fetch all secrets and print as .env format
+#   bash scripts/secrets.sh validate # validate local ENV_FILE against .env.example
 #
 set -euo pipefail
+
+# Read the command early so validate can run without requiring gcloud/project.
+cmd="${1:-help}"
 
 PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null || true)}"
 ENV_FILE="${ENV_FILE:-deploy/gcp/.env.production}"
 PREFIX="eventflow"
-cmd="${1:-help}"
 
+# Allow running `validate` without gcloud/project configuration (useful in CI/dev).
 if [[ "$cmd" != "validate" && -z "${PROJECT_ID}" ]]; then
   echo "ERROR: set PROJECT_ID or configure gcloud default project." >&2
   exit 1
@@ -93,7 +97,7 @@ validate() {
     exit 7
   fi
   if [[ ! -f "${ENV_FILE}" ]]; then
-    echo "Missing ENV_FILE ${ENV_FILE}">&2
+    echo "Missing ENV_FILE ${ENV_FILE}" >&2
     exit 2
   fi
   MISSING=0
@@ -104,7 +108,7 @@ validate() {
       MISSING=1
     fi
   done
-  if [[ "$MISSING" == "1" ]]; then
+  if [[ "${MISSING}" == "1" ]]; then
     echo "ERROR: One or more required variables are missing from ${ENV_FILE}."
     exit 4
   else
