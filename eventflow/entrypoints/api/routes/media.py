@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import re
 import ssl
 import json
 from uuid import UUID
@@ -280,6 +279,7 @@ def get_thumbnail(
     try:
         meta = media_extractor.extract(url)
     except Exception:
+        _log_media.warning("yt-dlp extraction failed, falling back to OG for %s", url, exc_info=True)
         # Some providers (notably Instagram/LinkedIn) may fail extraction due to auth/rate limits
         # or content type mismatches. Fall back to OpenGraph image extraction for known hosts.
         parsed = urlparse(url)

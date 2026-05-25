@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -11,6 +12,7 @@ from eventflow.service_layer import handlers
 
 
 router = APIRouter(tags=["Capture"])
+_log = logging.getLogger(__name__)
 
 
 @router.post("/capture/image", status_code=status.HTTP_201_CREATED, response_model=EventDraftResponse)
@@ -23,6 +25,7 @@ async def capture_event_image(
     try:
         image_bytes = base64.b64decode(body.image_base64)
     except Exception:
+        _log.exception("Failed to decode base64 image payload")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid base64 payload")
 
     result = handlers.handle_capture_event_image(

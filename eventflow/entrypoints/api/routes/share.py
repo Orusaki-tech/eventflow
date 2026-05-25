@@ -95,6 +95,7 @@ def _safe_fromisoformat(value: object) -> datetime | None:
     try:
         return datetime.fromisoformat(s)
     except Exception:
+        _log.exception("Failed to parse ISO datetime string: %s", s)
         return None
 
 
@@ -136,6 +137,7 @@ def _share_url_with_instagram_img_index(url: str, img_index: int) -> str:
         pairs.append(("img_index", str(int(img_index))))
         return urlunparse((p.scheme, p.netloc, p.path, p.params, urlencode(pairs), p.fragment))
     except Exception:
+        _log.exception("Failed to attach img_index to URL: %s", url)
         return url
 
 
@@ -164,6 +166,7 @@ def _attach_share_url_preview_poster(
                         try:
                             redis_client = redis.Redis.from_url(settings.redis_url)
                         except Exception:
+                            _log.exception("Failed to create Redis client in _attach_share_url_preview_poster")
                             redis_client = None
                     with uow:
                         sess = getattr(uow, "session", None)
@@ -188,6 +191,7 @@ def _attach_share_url_preview_poster(
                         try:
                             redis_client.close()
                         except Exception:
+                            _log.exception("Redis client close failed in _attach_share_url_preview_poster")
                             pass
     except Exception as e:
         _log.warning("share_url preview poster attachment failed: %s", e)
@@ -587,6 +591,7 @@ async def parse_draft_from_image(
             try:
                 redis_client = redis.Redis.from_url(settings.redis_url)
             except Exception:
+                _log.exception("Failed to create Redis client in parse_draft_from_image")
                 redis_client = None
         try:
             with uow:
@@ -760,6 +765,7 @@ async def share_poster(
             try:
                 poster_asset_id_from_cache = UUID(cached_asset_id.decode("utf-8"))
             except Exception:
+                _log.exception("Failed to parse cached poster asset UUID: %s", cached_asset_id)
                 poster_asset_id_from_cache = None
 
         def _link_source(*, poster_asset_id: UUID, draft_id: UUID) -> None:
@@ -803,6 +809,7 @@ async def share_poster(
                     if start_dt.tzinfo is None:
                         start_dt = start_dt.replace(tzinfo=timezone.utc)
                 except Exception:
+                    _log.exception("Failed to parse start_time ISO datetime: %s", start_iso)
                     start_dt = None
             title = str(pj.get("title") or "").strip()
             venue = str(pj.get("venue") or "").strip()
@@ -965,6 +972,7 @@ async def share_poster(
         try:
             r.close()
         except Exception:
+            _log.exception("Redis close failed in share_poster finally")
             pass
 
 
