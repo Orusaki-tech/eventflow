@@ -13,7 +13,7 @@ PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null || true)
 ENV_FILE="${ENV_FILE:-deploy/gcp/.env.production}"
 PREFIX="eventflow"
 
-if [[ -z "${PROJECT_ID}" ]]; then
+if [[ "$cmd" != "validate" && -z "${PROJECT_ID}" ]]; then
   echo "ERROR: set PROJECT_ID or configure gcloud default project." >&2
   exit 1
 fi
