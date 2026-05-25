@@ -1,6 +1,6 @@
 "use client";
 
-import { IconReceipt } from "@tabler/icons-react";
+import { IconReceipt, IconExternalLink } from "@tabler/icons-react";
 import { useState } from "react";
 import { usePortalAuth } from "@/components/portal/portal-auth-context";
 import { postBillingCheckout } from "@/lib/eventflow-api";
@@ -10,16 +10,23 @@ export default function BillingPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
 
   const runCheckout = async () => {
     setErr(null);
     setStatus(null);
+    setCheckoutUrl(null);
     setBusy(true);
     const popup = window.open("", "_blank", "noopener,noreferrer");
     try {
       const out = await postBillingCheckout(token);
       setStatus(`Checkout URL issued (${out.provider}).`);
-      if (out.checkout_url && popup) popup.location.href = out.checkout_url;
+      if (popup) {
+        popup.location.href = out.checkout_url;
+      } else {
+        setErr("Popup blocked. Please allow popups for this site or click the checkout URL directly.");
+        setCheckoutUrl(out.checkout_url);
+      }
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e));
       popup?.close();
@@ -54,6 +61,14 @@ export default function BillingPage() {
         </div>
         {status ? <p className="portal-status">{status}</p> : null}
         {err ? <p className="portal-error">{err}</p> : null}
+        {checkoutUrl ? (
+          <p className="portal-error">
+            <a href={checkoutUrl} target="_blank" rel="noopener noreferrer">
+              <IconExternalLink size={14} stroke={1.5} style={{ verticalAlign: "middle", marginRight: 4 }} />
+              Open checkout URL
+            </a>
+          </p>
+        ) : null}
       </div>
     </div>
   );
