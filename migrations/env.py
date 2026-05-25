@@ -35,7 +35,7 @@ if config.config_file_name is not None:
 
 from eventflow.config import Settings
 settings = Settings()
-db_url = settings.effective_db_url()
+db_url = settings.effective_db_url
 
 if db_url:
     # ConfigParser treats "%" specially; double them so URL-encoded passwords survive set/get.
