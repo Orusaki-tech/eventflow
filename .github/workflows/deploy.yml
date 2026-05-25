@@ -79,8 +79,8 @@ jobs:
               # Authenticate Docker to Artifact Registry
               sudo gcloud auth configure-docker --quiet ${REGION}-docker.pkg.dev 2>/dev/null || true
 
-              # Pull the pre-built image from Artifact Registry
-              sudo IMAGE_TAG=${{ env.IMAGE_TAG }} docker compose pull
+              # Pull only the API image (other images are cached)
+              sudo docker pull ${{ env.IMAGE_TAG }}
 
               # Start the stack
               sudo IMAGE_TAG=${{ env.IMAGE_TAG }} docker compose up -d --remove-orphans

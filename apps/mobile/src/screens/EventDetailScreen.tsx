@@ -8,6 +8,7 @@ import { useAuth } from "../auth/AuthContext";
 import {
   cancelEvent,
   EventflowApiError,
+  getEvent,
   patchEventBasics,
   patchEventDescription,
   patchEventPrice,
@@ -105,11 +106,9 @@ export function EventDetailScreen({ navigation, route }: Props) {
   const ownerUserId = route.params.ownerUserId;
   const initialPrice = route.params.price ?? null;
   const [sharedUrl, setSharedUrl] = useState<string | null>(initialSharedUrl ?? null);
-  // TODO: Fetch description and audience from API on mount.
-  // Currently there is no individual event detail GET endpoint that returns these fields.
-  // Without fetching, saving will overwrite server values with these defaults.
   const [audience, setAudience] = useState<"public" | "close_friends">("public");
   const [description, setDescription] = useState("");
+  const [descriptionLoaded, setDescriptionLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [priceInput, setPriceInput] = useState(initialPrice?.trim() ?? "");
   const [savingPrice, setSavingPrice] = useState(false);
@@ -134,6 +133,32 @@ export function EventDetailScreen({ navigation, route }: Props) {
     setVenueInput(venue);
     setStartInput(start_time);
   }, [title, start_time, venue]);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const evt = await getEvent(apiBaseUrl, accessToken, eventId);
+        if (cancelled) return;
+        const descPublic = evt.description_public ?? "";
+        const descCloseFriends = evt.description_close_friends ?? "";
+        if (descPublic) {
+          setDescription(descPublic);
+          setAudience("public");
+        } else if (descCloseFriends) {
+          setDescription(descCloseFriends);
+          setAudience("close_friends");
+        }
+        setDescriptionLoaded(true);
+      } catch {
+        if (!cancelled) setDescriptionLoaded(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBaseUrl, accessToken, eventId]);
 
   const authUserId = session?.user?.id ?? null;
   const isEventOwner =
@@ -478,6 +503,10 @@ export function EventDetailScreen({ navigation, route }: Props) {
           loading={saving}
           variant="outline"
           onPress={() => {
+            if (!descriptionLoaded) {
+              Alert.alert("Still loading", "Description data is not ready yet. Please wait.");
+              return;
+            }
             setSaving(true);
             void (async () => {
               try {

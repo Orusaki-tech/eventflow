@@ -563,6 +563,32 @@ export async function createVenue(
   });
 }
 
+export type EventDetailResponse = {
+  id: string;
+  user_id: string;
+  title: string;
+  start_time: string;
+  venue: string;
+  visibility: "private" | "public";
+  price?: string | null;
+  description_public?: string | null;
+  description_close_friends?: string | null;
+  cancelled_at?: string | null;
+};
+
+export async function getEvent(
+  baseUrl: string,
+  token: string | null,
+  eventId: string
+): Promise<EventDetailResponse> {
+  return request<EventDetailResponse>(
+    baseUrl,
+    `/api/v1/events/${eventId}`,
+    token,
+    { method: "GET" }
+  );
+}
+
 export async function patchEventVisibility(
   baseUrl: string,
   token: string | null,

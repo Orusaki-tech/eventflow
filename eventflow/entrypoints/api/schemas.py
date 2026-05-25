@@ -298,6 +298,19 @@ class EventDescriptionUpdateRequest(BaseModel):
     audience: str  # "public" | "close_friends"
 
 
+class EventDetailResponse(BaseModel):
+    id: UUID
+    user_id: UUID
+    title: str
+    start_time: datetime
+    venue: str
+    price: str | None = None
+    visibility: str  # "private" | "public"
+    description_public: str | None = None
+    description_close_friends: str | None = None
+    cancelled_at: datetime | None = None
+
+
 class GroupCreateRequest(BaseModel):
     name: str
 

@@ -16,6 +16,7 @@ from eventflow.entrypoints.api.schemas import (
     EtaRequest,
     EtaResponse,
     EventBasicsUpdateRequest,
+    EventDetailResponse,
     EventDescriptionUpdateRequest,
     EventPriceUpdateRequest,
     EventVisibilityUpdateRequest,
@@ -146,6 +147,53 @@ async def update_event_visibility(
         evt.visibility = body.visibility
         uow.commit()
     return {"ok": True, "visibility": body.visibility}
+
+
+@router.get("/events/{event_id}", status_code=status.HTTP_200_OK, response_model=EventDetailResponse)
+async def get_event_detail(
+    event_id: UUID,
+    user_id=Depends(get_current_user_id),
+    uow=Depends(get_uow),
+    session=Depends(get_session),
+):
+    with uow:
+        evt = uow.events.get(event_id)
+        if evt is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+        allowed = evt.user_id == user_id or evt.visibility == "public"
+        if not allowed and session is not None:
+            r = session.execute(
+                text(
+                    """
+                    SELECT 1
+                    FROM event_shares es
+                    JOIN group_memberships gm ON gm.group_id = es.group_id
+                    WHERE es.event_id = :event_id
+                      AND gm.user_id = :user_id
+                    LIMIT 1
+                    """
+                ),
+                {"event_id": str(event_id), "user_id": str(user_id)},
+            ).first()
+            allowed = r is not None
+
+        if not allowed:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed")
+
+        uow.commit()
+        return EventDetailResponse(
+            id=evt.id,
+            user_id=evt.user_id,
+            title=evt.title,
+            start_time=evt.start_time,
+            venue=evt.venue,
+            price=evt.price,
+            visibility=evt.visibility.value,
+            description_public=evt.description_public,
+            description_close_friends=evt.description_close_friends,
+            cancelled_at=evt.cancelled_at,
+        )
 
 
 @router.patch("/events/{event_id}/description", status_code=status.HTTP_200_OK)
