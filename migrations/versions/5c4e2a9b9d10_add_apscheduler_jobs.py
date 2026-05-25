@@ -20,11 +20,19 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # Create the apscheduler_jobs table if it doesn't already exist (APScheduler might create it automatically)
     op.create_table(
         "apscheduler_jobs",
-        sa.Column("id", sa.String(length=191), primary_key=True),
-        sa.Column("next_run_time", sa.Float(), nullable=True, index=True),
-        sa.Column("job_state", sa.LargeBinary(), nullable=False),
+        sa.Column("id", sa.VARCHAR(length=191), autoincrement=False, nullable=False),
+        sa.Column(
+            "next_run_time",
+            sa.Float(timezone=True),
+            autoincrement=False,
+            nullable=True,
+        ),
+        sa.Column("job_state", sa.LargeBinary(), autoincrement=False, nullable=False),
+        sa.PrimaryKeyConstraint("id", name="apscheduler_jobs_pkey"),
+        if_not_exists=True,
     )
 
 
