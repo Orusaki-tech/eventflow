@@ -160,7 +160,7 @@ export function EventDateTimePickerField({
 
       {Platform.OS === "ios" ? (
         <Modal visible={iosOpen} animationType="slide" transparent onRequestClose={() => setIosOpen(false)}>
-          <Pressable style={styles.iosModalBackdrop} onPress={() => setIosOpen(false)}>
+          <Pressable accessibilityLabel="Close date picker" style={styles.iosModalBackdrop} onPress={() => setIosOpen(false)}>
             <Pressable style={styles.iosSheet} onPress={(e) => e.stopPropagation()}>
               <View style={styles.iosToolbar}>
                 <Button label="Cancel" variant="text" size="md" onPress={() => setIosOpen(false)} />

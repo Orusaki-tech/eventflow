@@ -31,7 +31,7 @@ router = APIRouter(tags=["Discovery"])
 )
 async def shared_link_listing_status(url: str = Query(min_length=8), session=Depends(get_session)):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     norm = normalize_shared_url(url)
     row = session.execute(
         text("SELECT status FROM shared_link_listings WHERE normalized_url = :u LIMIT 1"),
@@ -80,7 +80,7 @@ async def discovery_my_community_events(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     rows = views.list_my_community_events(session=session, user_id=user_id, limit=limit)
     return [CommunityEventMineListRowResponse.model_validate(r) for r in rows]
 
@@ -96,12 +96,12 @@ async def discovery_my_community_event_detail(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     row = views.get_my_community_event_detail(
         session=session, user_id=user_id, community_event_id=community_event_id
     )
     if row is None:
-        raise HTTPException(status_code=404, detail="Listing not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Listing not found")
     return CommunityEventMineDetailResponse.model_validate(row)
 
 
@@ -133,7 +133,7 @@ async def discovery_business_profile(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
 
     biz = session.execute(
         text(
@@ -143,7 +143,7 @@ async def discovery_business_profile(
         {"id": str(business_id)},
     ).first()
     if biz is None:
-        raise HTTPException(status_code=404, detail="Business not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found")
 
     follower_count_row = session.execute(
         text("SELECT COUNT(*) FROM business_follows WHERE business_id = :id"),

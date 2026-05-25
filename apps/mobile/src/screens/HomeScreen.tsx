@@ -212,6 +212,7 @@ export function HomeScreen({ navigation }: Props) {
       )}
 
       <Pressable
+        accessibilityLabel="View full calendar"
         style={({ pressed }) => [styles.secondaryBtn, pressedOpacityStyle(pressed)]}
         onPress={() =>
           navigation.getParent()?.navigate("Calendar", {

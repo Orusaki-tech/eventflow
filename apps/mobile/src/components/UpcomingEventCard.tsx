@@ -373,6 +373,7 @@ export function UpcomingEventCard({
       )}
 
       <Pressable
+        accessibilityLabel="View event details"
         disabled={!onPress}
         accessibilityRole={onPress ? "button" : undefined}
         onPress={() => onPress?.({ eventId: item.id, sharedUrl })}

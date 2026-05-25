@@ -360,6 +360,7 @@ export function SocialHubScreen({ navigation }: Props) {
 
       <View style={styles.segmentRow}>
         <Pressable
+          accessibilityLabel="Groups tab"
           onPress={() => setSegment("groups")}
           style={({ pressed }) => [
             styles.segment,
@@ -370,6 +371,7 @@ export function SocialHubScreen({ navigation }: Props) {
           <AppText variant="label">Groups</AppText>
         </Pressable>
         <Pressable
+          accessibilityLabel="Following tab"
           onPress={() => setSegment("following")}
           style={({ pressed }) => [
             styles.segment,
@@ -386,6 +388,7 @@ export function SocialHubScreen({ navigation }: Props) {
           <View style={styles.filterRow}>
             {(["all", "owner", "member"] as const).map((r) => (
               <Pressable
+                accessibilityLabel="Filter by role"
                 key={r}
                 onPress={() => setRoleFilter(r)}
                 style={({ pressed }) => [
@@ -486,7 +489,7 @@ export function SocialHubScreen({ navigation }: Props) {
       )}
 
       <Modal visible={createOpen} transparent animationType="fade" onRequestClose={() => setCreateOpen(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setCreateOpen(false)}>
+        <Pressable accessibilityLabel="Close create group" style={styles.modalBackdrop} onPress={() => setCreateOpen(false)}>
           <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
             <AppText variant="title">New group</AppText>
             <TextInput
@@ -505,7 +508,7 @@ export function SocialHubScreen({ navigation }: Props) {
       </Modal>
 
       <Modal visible={joinOpen} transparent animationType="fade" onRequestClose={() => setJoinOpen(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setJoinOpen(false)}>
+        <Pressable accessibilityLabel="Close join group" style={styles.modalBackdrop} onPress={() => setJoinOpen(false)}>
           <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
             <AppText variant="title">Join with invite token</AppText>
             <TextInput

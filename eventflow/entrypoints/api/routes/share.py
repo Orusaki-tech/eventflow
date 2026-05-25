@@ -75,11 +75,11 @@ def _persist_or_merge_poster_parsed(
             uow=uow,
         )
     except DraftNotFound:
-        raise HTTPException(status_code=404, detail="Draft not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Draft not found")
     except PermissionDenied:
-        raise HTTPException(status_code=403, detail="Not your draft")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your draft")
     except InvariantViolation as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
 
 def _url_parse_log_key(url: str) -> str:
@@ -287,7 +287,7 @@ async def share_url(
         ).first()
         if row is not None and row[0] == "rejected":
             raise HTTPException(
-                status_code=409,
+                status_code=status.HTTP_409_CONFLICT,
                 detail="This shared link was rejected. Enter event details manually.",
             )
 
@@ -434,7 +434,7 @@ async def share_url(
         )
         return out
     except InvariantViolation as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except APIError as e:
         # Surface as a dependency/upstream failure (invalid key, quota, etc.)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"AI parsing failed: {e}")
@@ -480,7 +480,7 @@ async def share_instagram_carousel_url(
         drafts = [EventDraftResponse.model_validate(x) for x in sealed]
         return ShareUrlCarouselResponse(drafts=drafts, slides_used=slides_used)
     except InvariantViolation as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except APIError as e:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"AI parsing failed: {e}")
     except httpx.HTTPError as e:
@@ -517,7 +517,7 @@ async def instagram_carousel_preview(
             dt_ms,
         )
     except InvariantViolation as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except TimeoutError:
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
@@ -554,7 +554,7 @@ async def parse_draft_from_image(
 ):
     img = store.get(token=body.image_token)
     if img is None:
-        raise HTTPException(status_code=404, detail="Image token expired or not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image token expired or not found")
 
     try:
         parsed_ev = gemini.parse_event_image(image_bytes=img.image_bytes, content_type=img.content_type)
@@ -573,11 +573,11 @@ async def parse_draft_from_image(
             uow=uow,
         )
     except DraftNotFound:
-        raise HTTPException(status_code=404, detail="Draft not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Draft not found")
     except PermissionDenied:
-        raise HTTPException(status_code=403, detail="Not your draft")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your draft")
     except InvariantViolation as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
     poster_asset_id = None
     settings = get_settings()
@@ -636,10 +636,10 @@ async def share_image(
     gemini=Depends(get_gemini_client),
 ):
     if not (file.content_type or "").startswith("image/"):
-        raise HTTPException(status_code=400, detail="file must be an image")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="file must be an image")
     image_bytes = await file.read()
     if not image_bytes:
-        raise HTTPException(status_code=400, detail="empty file")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="empty file")
     try:
         return handlers.handle_capture_event_upload_image(
             commands.CaptureEventUploadImage(user_id=user_id, image_bytes=image_bytes),
@@ -665,7 +665,7 @@ async def share_media(
     ct = (file.content_type or "").lower()
     raw = await file.read()
     if not raw:
-        raise HTTPException(status_code=400, detail="empty file")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="empty file")
 
     if ct.startswith("image/"):
         try:
@@ -685,7 +685,7 @@ async def share_media(
     if ct.startswith("video/"):
         MAX_VIDEO_BYTES = 50 * 1024 * 1024
         if len(raw) > MAX_VIDEO_BYTES:
-            raise HTTPException(status_code=413, detail="Video too large")
+            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Video too large")
         # Durable store (filesystem) + create a minimal draft. Video parsing can be added later.
         base = Path(get_settings().poster_storage_dir).expanduser().resolve()
         vdir = base / "videos"
@@ -705,7 +705,7 @@ async def share_media(
         _ = source_text
         return ShareMediaResponse(**out, media_kind="video", media_id=vid)
 
-    raise HTTPException(status_code=400, detail="file must be an image or video")
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="file must be an image or video")
 
 
 def _redis_for_posters(redis_url: str) -> redis.Redis:
@@ -728,17 +728,17 @@ async def share_poster(
     store: PosterStore = Depends(get_poster_store),
 ):
     if not (file.content_type or "").startswith("image/"):
-        raise HTTPException(status_code=400, detail="file must be an image")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="file must be an image")
     image_bytes = await file.read()
     if not image_bytes:
-        raise HTTPException(status_code=400, detail="empty file")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="empty file")
 
     target_draft_id: UUID | None = None
     if isinstance(draft_id, str) and draft_id.strip():
         try:
             target_draft_id = UUID(draft_id.strip())
         except ValueError:
-            raise HTTPException(status_code=400, detail="draft_id must be a UUID")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="draft_id must be a UUID")
 
     content_sha256_hex = hashlib.sha256(image_bytes).hexdigest()
     dh = dhash64(image_bytes)
@@ -748,9 +748,9 @@ async def share_poster(
 
     settings = get_settings()
     if not settings.redis_url:
-        raise HTTPException(status_code=500, detail="Redis not configured")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Redis not configured")
     if not settings.effective_db_url:
-        raise HTTPException(status_code=500, detail="DB not configured")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="DB not configured")
 
     r = _redis_for_posters(settings.redis_url)
     try:
@@ -879,7 +879,7 @@ async def share_poster(
             try:
                 poster_id = store.put(content_type=file.content_type or "application/octet-stream", image_bytes=image_bytes)
             except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Failed to store image: {str(e)}")
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to store image: {str(e)}")
             now = datetime.now(timezone.utc)
             poster_asset_id = uuid4()
             uow.session.execute(
@@ -901,7 +901,7 @@ async def share_poster(
 
             if target_draft_id is not None:
                 if gemini is None:
-                    raise HTTPException(status_code=500, detail="Gemini client not configured")
+                    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Gemini client not configured")
                 parsed_img = gemini.parse_event_image(image_bytes=image_bytes, content_type=file.content_type)
                 out = _persist_or_merge_poster_parsed(
                     target_draft_id=target_draft_id,
@@ -976,9 +976,9 @@ async def share_ics(
 ):
     ics_bytes = await file.read()
     if not ics_bytes:
-        raise HTTPException(status_code=400, detail="empty file")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="empty file")
     try:
         return handlers.handle_capture_event_ics(commands.CaptureEventIcs(user_id=user_id, ics_bytes=ics_bytes), uow)
     except InvariantViolation as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

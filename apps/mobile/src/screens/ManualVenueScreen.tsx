@@ -350,6 +350,7 @@ export function ManualVenueScreen({ navigation, route }: Props) {
             <View style={styles.suggestListWrap}>
               {addressSuggestions.map((p) => (
                 <Pressable
+                  accessibilityLabel="Select this address"
                   key={p.place_id}
                   onPress={() => void pickAddressSuggestion(p)}
                   style={({ pressed }) => [styles.suggestionRow, pressedOpacityStyle(pressed)]}

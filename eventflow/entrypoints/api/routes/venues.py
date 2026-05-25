@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from eventflow.adapters.repository import Venue
 from eventflow.entrypoints.api.schemas import VenueCreateRequest, VenueResponse, VenueUpdateRequest
-from eventflow.auth.supabase import AuthenticatedUser
 from eventflow.entrypoints.dependencies import (
     get_current_user_id,
     get_session,

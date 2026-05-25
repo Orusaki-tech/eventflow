@@ -192,13 +192,13 @@ export function ProfileScreen({ navigation }: Props) {
         </AppText>
 
         <View style={styles.monthRow}>
-          <Pressable style={({ pressed }) => [styles.monthBtn, pressedOpacityStyle(pressed)]} onPress={() => shiftMonth(-1)}>
+          <Pressable accessibilityLabel="Previous month" style={({ pressed }) => [styles.monthBtn, pressedOpacityStyle(pressed)]} onPress={() => shiftMonth(-1)}>
             <AppText variant="label">←</AppText>
           </Pressable>
           <AppText variant="title" style={{ flex: 1, textAlign: "center" }}>
             {monthLabel(year, month)}
           </AppText>
-          <Pressable style={({ pressed }) => [styles.monthBtn, pressedOpacityStyle(pressed)]} onPress={() => shiftMonth(1)}>
+          <Pressable accessibilityLabel="Next month" style={({ pressed }) => [styles.monthBtn, pressedOpacityStyle(pressed)]} onPress={() => shiftMonth(1)}>
             <AppText variant="label">→</AppText>
           </Pressable>
         </View>

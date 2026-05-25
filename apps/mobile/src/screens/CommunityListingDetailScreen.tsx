@@ -331,6 +331,7 @@ export function CommunityListingDetailScreen({ route }: Props) {
       </View>
 
       <Pressable
+        accessibilityLabel="Open venue in Maps"
         style={({ pressed }) => [pressedOpacityStyle(pressed)]}
         onPress={() => void Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(venue)}`)}
       >

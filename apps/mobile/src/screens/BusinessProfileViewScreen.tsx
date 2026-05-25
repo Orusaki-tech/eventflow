@@ -138,7 +138,7 @@ export function BusinessProfileViewScreen({ route }: Props) {
         <Card style={styles.section}>
           <AppText variant="title">Contact</AppText>
           {profile.website ? (
-            <Pressable style={({ pressed }) => pressedOpacityStyle(pressed)} onPress={() => Linking.openURL(profile.website!)}>
+            <Pressable accessibilityLabel="Open website" style={({ pressed }) => pressedOpacityStyle(pressed)} onPress={() => Linking.openURL(profile.website!)}>
               <AppText style={{ color: colors.textPrimary }}>🌐 {profile.website}</AppText>
             </Pressable>
           ) : null}
@@ -147,7 +147,7 @@ export function BusinessProfileViewScreen({ route }: Props) {
             const wa = profile.whatsapp_e164;
             if (!wa) return null;
             return (
-              <Pressable style={({ pressed }) => pressedOpacityStyle(pressed)} onPress={() => {
+              <Pressable accessibilityLabel="Open WhatsApp" style={({ pressed }) => pressedOpacityStyle(pressed)} onPress={() => {
                 const url = whatsAppMeUrlFromE164(wa);
                 if (url) Linking.openURL(url);
               }}>
@@ -165,6 +165,7 @@ export function BusinessProfileViewScreen({ route }: Props) {
       ) : (
         profile.listings.map((l) => (
           <Pressable
+            accessibilityLabel="View listing"
             key={l.community_event_id}
             style={({ pressed }) => pressedOpacityStyle(pressed)}
             onPress={() =>

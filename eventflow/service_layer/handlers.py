@@ -887,6 +887,7 @@ def handle_cancel_event(cmd: commands.CancelEvent, uow: AbstractUnitOfWork) -> N
     if evt.user_id != cmd.user_id:
         raise PermissionDenied("Not your event")
     evt.cancel()
+    uow.commit()
 
 
 def handle_schedule_traffic_alert(cmd: commands.ScheduleTrafficAlert, uow: AbstractUnitOfWork) -> None:
@@ -896,6 +897,7 @@ def handle_schedule_traffic_alert(cmd: commands.ScheduleTrafficAlert, uow: Abstr
     if evt.user_id != cmd.user_id:
         raise PermissionDenied("Not your event")
     evt.schedule_traffic_alert(traffic=TrafficCondition(travel_seconds=cmd.travel_seconds))
+    uow.commit()
 
 
 def handle_schedule_reminder_alert(cmd: commands.ScheduleReminderAlert, uow: AbstractUnitOfWork) -> None:
@@ -905,6 +907,7 @@ def handle_schedule_reminder_alert(cmd: commands.ScheduleReminderAlert, uow: Abs
     if evt.user_id != cmd.user_id:
         raise PermissionDenied("Not your event")
     evt.schedule_reminder_alert(minutes_before=cmd.minutes_before)
+    uow.commit()
 
 
 def sync_to_calendar(evt, uow: AbstractUnitOfWork) -> None:

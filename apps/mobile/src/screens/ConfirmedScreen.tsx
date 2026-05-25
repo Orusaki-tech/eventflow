@@ -327,7 +327,7 @@ export function ConfirmedScreen({ navigation, route }: Props) {
         </>
       )}
 
-      <Pressable style={({ pressed }) => [styles.footerBtn, pressedOpacityStyle(pressed)]} onPress={() => navigation.popToTop()}>
+      <Pressable accessibilityLabel="Back to home" style={({ pressed }) => [styles.footerBtn, pressedOpacityStyle(pressed)]} onPress={() => navigation.popToTop()}>
         <AppText tone="tertiary" style={styles.footerLabel}>
           Back to home
         </AppText>

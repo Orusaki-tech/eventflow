@@ -141,6 +141,7 @@ export function CaptureScreen({ navigation }: Props) {
         <View style={styles.list}>
           {uniqueDrafts.map((d) => (
             <Pressable
+              accessibilityLabel="View draft"
               key={d.draft_id}
               style={({ pressed }) => pressedOpacityStyle(pressed)}
               onPress={() => {
@@ -176,6 +177,7 @@ export function CaptureScreen({ navigation }: Props) {
                     </View>
 
                     <Pressable
+                      accessibilityLabel="Copy link"
                       style={({ pressed }) => [styles.linkBtn, pressedOpacityStyle(pressed)]}
                       onPress={async () => {
                         const url = draftSourceUrls[d.draft_id];
@@ -189,6 +191,7 @@ export function CaptureScreen({ navigation }: Props) {
                     </Pressable>
 
                     <Pressable
+                      accessibilityLabel="Open link"
                       style={({ pressed }) => [styles.linkBtn, pressedOpacityStyle(pressed)]}
                       onPress={async () => {
                         const url = draftSourceUrls[d.draft_id];

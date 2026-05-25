@@ -159,7 +159,7 @@ export function DiscoverHomeScreen() {
         const waUrl = item.whatsapp_e164?.trim() ? whatsAppMeUrlFromE164(item.whatsapp_e164.trim()) : null;
         return (
           <Card style={styles.card}>
-            <Pressable style={({ pressed }) => [pressedOpacityStyle(pressed)]} onPress={() => openListing(item)}>
+            <Pressable accessibilityLabel="View listing details" style={({ pressed }) => [pressedOpacityStyle(pressed)]} onPress={() => openListing(item)}>
               <View>
                 {poster ? (
                   <Image source={{ uri: poster }} style={styles.hero} resizeMode="cover" />

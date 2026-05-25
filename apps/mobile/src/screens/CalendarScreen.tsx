@@ -127,6 +127,7 @@ export function CalendarScreen({ navigation }: Props) {
     <View style={styles.root}>
       <View style={styles.segmentRow}>
         <Pressable
+          accessibilityLabel="Today tab"
           style={({ pressed }) => [
             styles.segment,
             segment === "today" && styles.segmentActive,
@@ -139,6 +140,7 @@ export function CalendarScreen({ navigation }: Props) {
           </AppText>
         </Pressable>
         <Pressable
+          accessibilityLabel="Upcoming tab"
           style={({ pressed }) => [
             styles.segment,
             segment === "upcoming" && styles.segmentActive,
