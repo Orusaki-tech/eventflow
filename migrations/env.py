@@ -33,7 +33,10 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-db_url = os.getenv("DB_URL")
+from eventflow.config import Settings
+settings = Settings()
+db_url = settings.effective_db_url()
+
 if db_url:
     # ConfigParser treats "%" specially; double them so URL-encoded passwords survive set/get.
     config.set_main_option("sqlalchemy.url", db_url.replace("%", "%%"))
