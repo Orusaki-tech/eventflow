@@ -39,6 +39,17 @@ jobs:
 
       - name: Deploy to GCE VM
         run: |
+          # Bundle files to deploy
+          tar czf /tmp/deploy.tar.gz \
+            docker-compose.yml Dockerfile alembic.ini pyproject.toml \
+            .env.example eventflow/ migrations/ requirements.txt
+
+          # Copy bundle to VM
+          gcloud compute scp \
+            --zone ${{ vars.ZONE }} \
+            --quiet \
+            /tmp/deploy.tar.gz ${{ vars.VM_NAME }}:/opt/eventflow/deploy.tar.gz
+
           gcloud compute ssh ${{ vars.VM_NAME }} \
             --zone ${{ vars.ZONE }} \
             --quiet \
@@ -46,6 +57,10 @@ jobs:
               set -e
 
               cd /opt/eventflow
+
+              # Extract bundle
+              tar xzf deploy.tar.gz
+              rm -f deploy.tar.gz
 
               # Pull secrets from Secret Manager into .env
               sudo bash -c '
