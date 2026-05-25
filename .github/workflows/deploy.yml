@@ -65,18 +65,18 @@ jobs:
 
               # Pull secrets from Secret Manager securely
               cat << 'INNEREOF' > /tmp/pull_secrets.sh
-#!/bin/bash
-: > /opt/eventflow/.env
-chmod 600 /opt/eventflow/.env
-for secret in \$(gcloud secrets list --filter="labels.service=eventflow" --format="value(name)" 2>/dev/null); do
-  key=\$(echo "\$secret" | sed 's/^eventflow-//' | tr '[:lower:]' '[:upper:]')
-  val=\$(gcloud secrets versions access latest --secret="\$secret" 2>/dev/null || true)
-  if [ -n "\$val" ]; then
-    val_escaped=\$(echo "\$val" | sed "s/'/'\\\\''/g")
-    echo "\$key='\$val_escaped'" >> /opt/eventflow/.env
-  fi
-done
-INNEREOF
+              #!/bin/bash
+              : > /opt/eventflow/.env
+              chmod 600 /opt/eventflow/.env
+              for secret in \$(gcloud secrets list --filter="labels.service=eventflow" --format="value(name)" 2>/dev/null); do
+                key=\$(echo "\$secret" | sed 's/^eventflow-//' | tr '[:lower:]' '[:upper:]')
+                val=\$(gcloud secrets versions access latest --secret="\$secret" 2>/dev/null || true)
+                if [ -n "\$val" ]; then
+                  val_escaped=\$(echo "\$val" | sed "s/'/'\\\\''/g")
+                  echo "\$key='\$val_escaped'" >> /opt/eventflow/.env
+                fi
+              done
+              INNEREOF
               sudo bash /tmp/pull_secrets.sh
               rm -f /tmp/pull_secrets.sh
 
@@ -86,9 +86,9 @@ INNEREOF
               # Pull only the API image (other images are cached)
               sudo docker pull ${{ env.IMAGE_TAG }}
 
-              # Start only essential services (e2-small can't run all workers)
+              # Start all essential services and workers
               # Inject DOMAIN so Caddy can automatically provision HTTPS if set
-              sudo IMAGE_TAG=${{ env.IMAGE_TAG }} DOMAIN=${{ vars.DOMAIN }} docker compose up -d --remove-orphans api caddy redis
+              sudo IMAGE_TAG=${{ env.IMAGE_TAG }} DOMAIN=${{ vars.DOMAIN }} docker compose up -d --remove-orphans
 
               # Run migrations (with timeout to avoid hanging on DB issues)
               sleep 10
@@ -120,12 +120,12 @@ INNEREOF
               --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
             URL="http://${IP}/api/v1/healthz"
           fi
-          for i in $(seq 1 20); do
+          for i in $(seq 1 40); do
             if curl -fsS --max-time 3 "${URL}" >/dev/null 2>&1; then
               echo "✓ API healthy at ${URL}"
               exit 0
             fi
             sleep 3
           done
-          echo "WARN: health check failed after ~60s" >&2
+          echo "WARN: health check failed after ~120s" >&2
           exit 1
