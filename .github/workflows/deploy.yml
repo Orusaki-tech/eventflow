@@ -62,21 +62,21 @@ jobs:
           rm -f /tmp/deploy.tar.gz
 
           # Pull secrets from Secret Manager securely
-          cat << 'INNEREOF' > /tmp/pull_secrets.sh
-          #!/bin/bash
-          : > /opt/eventflow/.env
-          chmod 600 /opt/eventflow/.env
-          for secret in \$(gcloud secrets list --filter="labels.service=eventflow" --format="value(name)" 2>/dev/null); do
-            key=\$(echo "\$secret" | sed 's/^eventflow-//' | tr '[:lower:]' '[:upper:]')
-            val=\$(gcloud secrets versions access latest --secret="\$secret" 2>/dev/null || true)
-            if [ -n "\$val" ]; then
-              val_escaped=\$(echo "\$val" | sed "s/'/'\\\\''/g")
-              echo "\$key='\$val_escaped'" >> /opt/eventflow/.env
+          : > /tmp/.env.tmp
+          chmod 600 /tmp/.env.tmp
+          
+          for secret in $(gcloud secrets list --filter="labels.service=eventflow" --format="value(name)" 2>/dev/null); do
+            key=$(echo "$secret" | sed 's/^eventflow-//' | tr '[:lower:]' '[:upper:]')
+            val=$(gcloud secrets versions access latest --secret="$secret" 2>/dev/null || true)
+            if [ -n "$val" ]; then
+              val_escaped=$(echo "$val" | sed "s/'/'\\\\''/g")
+              echo "$key='$val_escaped'" >> /tmp/.env.tmp
             fi
           done
-          INNEREOF
-          sudo bash /tmp/pull_secrets.sh
-          rm -f /tmp/pull_secrets.sh
+          
+          sudo mv /tmp/.env.tmp /opt/eventflow/.env
+          sudo chown root:root /opt/eventflow/.env
+          sudo chmod 600 /opt/eventflow/.env
 
           # Authenticate Docker to Artifact Registry
           sudo gcloud auth configure-docker --quiet ${REGION}-docker.pkg.dev 2>/dev/null || true
