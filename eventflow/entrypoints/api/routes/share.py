@@ -159,29 +159,36 @@ def _attach_share_url_preview_poster(
             settings = get_settings()
             if settings.effective_db_url:
                 redis_client = None
-                if settings.redis_url:
-                    try:
-                        redis_client = redis.Redis.from_url(settings.redis_url)
-                    except Exception:
-                        redis_client = None
-                with uow:
-                    sess = getattr(uow, "session", None)
-                    if sess is not None:
-                        pid = persist_poster_and_link_draft(
-                            session=sess,
-                            poster_store=poster_store,
-                            redis_client=redis_client,
-                            user_id=user_id,
-                            draft_id=draft_out["draft_id"],
-                            image_bytes=image_bytes,
-                            content_type=content_type,
-                            source_url=source_url,
-                            parsed_snapshot=draft_out,
-                            model_version=_gemini_model_label(),
-                        )
-                        uow.commit()
-                        if pid:
-                            draft_out["poster_asset_id"] = pid
+                try:
+                    if settings.redis_url:
+                        try:
+                            redis_client = redis.Redis.from_url(settings.redis_url)
+                        except Exception:
+                            redis_client = None
+                    with uow:
+                        sess = getattr(uow, "session", None)
+                        if sess is not None:
+                            pid = persist_poster_and_link_draft(
+                                session=sess,
+                                poster_store=poster_store,
+                                redis_client=redis_client,
+                                user_id=user_id,
+                                draft_id=draft_out["draft_id"],
+                                image_bytes=image_bytes,
+                                content_type=content_type,
+                                source_url=source_url,
+                                parsed_snapshot=draft_out,
+                                model_version=_gemini_model_label(),
+                            )
+                            uow.commit()
+                            if pid:
+                                draft_out["poster_asset_id"] = pid
+                finally:
+                    if redis_client:
+                        try:
+                            redis_client.close()
+                        except Exception:
+                            pass
     except Exception as e:
         _log.warning("share_url preview poster attachment failed: %s", e)
     finally:
@@ -740,77 +747,108 @@ async def share_poster(
         raise HTTPException(status_code=500, detail="DB not configured")
 
     r = _redis_for_posters(settings.redis_url)
-    cached_asset_id = r.get(_poster_cache_key_sha256(content_sha256_hex))
-    poster_asset_id_from_cache: UUID | None = None
-    if cached_asset_id:
-        try:
-            poster_asset_id_from_cache = UUID(cached_asset_id.decode("utf-8"))
-        except Exception:
-            poster_asset_id_from_cache = None
-
-    def _link_source(*, poster_asset_id: UUID, draft_id: UUID) -> None:
-        now = datetime.now(timezone.utc)
-        uow.session.execute(
-            text(
-                """
-                INSERT INTO event_sources (id, user_id, draft_id, source_url_raw, source_url_normalized, poster_asset_id, created_at, updated_at)
-                VALUES (:id, :user_id, :draft_id, :raw, :norm, :poster_asset_id, :created_at, :created_at)
-                ON CONFLICT (user_id, draft_id) DO UPDATE SET
-                  source_url_raw = EXCLUDED.source_url_raw,
-                  source_url_normalized = EXCLUDED.source_url_normalized,
-                  poster_asset_id = EXCLUDED.poster_asset_id,
-                  updated_at = NOW()
-                """
-            ),
-            {
-                "id": str(uuid4()),
-                "user_id": str(user_id),
-                "draft_id": str(draft_id),
-                "raw": source_url,
-                "norm": (source_url or "").split("?", 1)[0] if source_url else None,
-                "poster_asset_id": str(poster_asset_id),
-                "created_at": now,
-            },
-        )
-
-    def _load_parsed(poster_asset_id: UUID) -> ParsedEventDraft | None:
-        row = uow.session.execute(
-            text("SELECT p.parsed_json FROM poster_asset_parses p WHERE p.poster_asset_id = :pid"),
-            {"pid": str(poster_asset_id)},
-        ).first()
-        if not row or not isinstance(row[0], dict):
-            return None
-        pj = row[0]
-        start_iso = pj.get("start_time")
-        start_dt = None
-        if isinstance(start_iso, str) and start_iso.strip():
+    try:
+        cached_asset_id = r.get(_poster_cache_key_sha256(content_sha256_hex))
+        poster_asset_id_from_cache: UUID | None = None
+        if cached_asset_id:
             try:
-                start_dt = datetime.fromisoformat(start_iso.strip().replace("Z", "+00:00"))
-                if start_dt.tzinfo is None:
-                    start_dt = start_dt.replace(tzinfo=timezone.utc)
+                poster_asset_id_from_cache = UUID(cached_asset_id.decode("utf-8"))
             except Exception:
-                start_dt = None
-        title = str(pj.get("title") or "").strip()
-        venue = str(pj.get("venue") or "").strip()
-        if not title and not venue:
-            return None
-        return ParsedEventDraft(
-            title=title or "Event",
-            start_time=start_dt,
-            venue=venue or "Unknown venue",
-            confidence_score=float(pj.get("confidence_score") or 0.8),
-            price=_coerce_optional_price(pj.get("price")),
-        )
+                poster_asset_id_from_cache = None
 
-    # Cache hit: validate Redis points at a row for these exact bytes, then reuse stored parse.
-    if poster_asset_id_from_cache is not None:
-        with uow:
-            sha_row = uow.session.execute(
-                text("SELECT content_sha256 FROM poster_assets WHERE id = :id"),
-                {"id": str(poster_asset_id_from_cache)},
+        def _link_source(*, poster_asset_id: UUID, draft_id: UUID) -> None:
+            now = datetime.now(timezone.utc)
+            uow.session.execute(
+                text(
+                    """
+                    INSERT INTO event_sources (id, user_id, draft_id, source_url_raw, source_url_normalized, poster_asset_id, created_at, updated_at)
+                    VALUES (:id, :user_id, :draft_id, :raw, :norm, :poster_asset_id, :created_at, :created_at)
+                    ON CONFLICT (user_id, draft_id) DO UPDATE SET
+                      source_url_raw = EXCLUDED.source_url_raw,
+                      source_url_normalized = EXCLUDED.source_url_normalized,
+                      poster_asset_id = EXCLUDED.poster_asset_id,
+                      updated_at = NOW()
+                    """
+                ),
+                {
+                    "id": str(uuid4()),
+                    "user_id": str(user_id),
+                    "draft_id": str(draft_id),
+                    "raw": source_url,
+                    "norm": (source_url or "").split("?", 1)[0] if source_url else None,
+                    "poster_asset_id": str(poster_asset_id),
+                    "created_at": now,
+                },
+            )
+
+        def _load_parsed(poster_asset_id: UUID) -> ParsedEventDraft | None:
+            row = uow.session.execute(
+                text("SELECT p.parsed_json FROM poster_asset_parses p WHERE p.poster_asset_id = :pid"),
+                {"pid": str(poster_asset_id)},
             ).first()
-            if sha_row and sha_row[0] == content_sha256_hex:
-                parsed = _load_parsed(poster_asset_id_from_cache)
+            if not row or not isinstance(row[0], dict):
+                return None
+            pj = row[0]
+            start_iso = pj.get("start_time")
+            start_dt = None
+            if isinstance(start_iso, str) and start_iso.strip():
+                try:
+                    start_dt = datetime.fromisoformat(start_iso.strip().replace("Z", "+00:00"))
+                    if start_dt.tzinfo is None:
+                        start_dt = start_dt.replace(tzinfo=timezone.utc)
+                except Exception:
+                    start_dt = None
+            title = str(pj.get("title") or "").strip()
+            venue = str(pj.get("venue") or "").strip()
+            if not title and not venue:
+                return None
+            return ParsedEventDraft(
+                title=title or "Event",
+                start_time=start_dt,
+                venue=venue or "Unknown venue",
+                confidence_score=float(pj.get("confidence_score") or 0.8),
+                price=_coerce_optional_price(pj.get("price")),
+            )
+
+        # Cache hit: validate Redis points at a row for these exact bytes, then reuse stored parse.
+        if poster_asset_id_from_cache is not None:
+            with uow:
+                sha_row = uow.session.execute(
+                    text("SELECT content_sha256 FROM poster_assets WHERE id = :id"),
+                    {"id": str(poster_asset_id_from_cache)},
+                ).first()
+                if sha_row and sha_row[0] == content_sha256_hex:
+                    parsed = _load_parsed(poster_asset_id_from_cache)
+                    if parsed is not None:
+                        out = _persist_or_merge_poster_parsed(
+                            target_draft_id=target_draft_id,
+                            user_id=user_id,
+                            parsed=parsed,
+                            uow=uow,
+                        )
+                        _link_source(poster_asset_id=poster_asset_id_from_cache, draft_id=out["draft_id"])
+                        uow.commit()
+                        return SharePosterResponse(
+                            draft_id=out["draft_id"],
+                            title=out["title"],
+                            start_time=out["start_time"],
+                            venue=out["venue"],
+                            confidence_score=out["confidence_score"],
+                            poster_asset_id=poster_asset_id_from_cache,
+                            source_url_raw=source_url,
+                            price=out.get("price"),
+                        )
+
+        # Cache miss: persist poster + parse with Gemini once.
+        with uow:
+            # DB check (cold Redis). Reuse parse only when this exact image was uploaded before.
+            existing = uow.session.execute(
+                text("SELECT id FROM poster_assets WHERE content_sha256 = :sha"),
+                {"sha": content_sha256_hex},
+            ).first()
+            if existing:
+                poster_asset_id = existing[0]
+                parsed = _load_parsed(poster_asset_id)
                 if parsed is not None:
                     out = _persist_or_merge_poster_parsed(
                         target_draft_id=target_draft_id,
@@ -818,132 +856,107 @@ async def share_poster(
                         parsed=parsed,
                         uow=uow,
                     )
-                    _link_source(poster_asset_id=poster_asset_id_from_cache, draft_id=out["draft_id"])
+                    _link_source(poster_asset_id=poster_asset_id, draft_id=out["draft_id"])
                     uow.commit()
+                    r.set(_poster_cache_key_sha256(content_sha256_hex), str(poster_asset_id), ex=30 * 24 * 3600)
                     return SharePosterResponse(
                         draft_id=out["draft_id"],
                         title=out["title"],
                         start_time=out["start_time"],
                         venue=out["venue"],
                         confidence_score=out["confidence_score"],
-                        poster_asset_id=poster_asset_id_from_cache,
+                        poster_asset_id=poster_asset_id,
                         source_url_raw=source_url,
                         price=out.get("price"),
                     )
 
-    # Cache miss: persist poster + parse with Gemini once.
-    with uow:
-        # DB check (cold Redis). Reuse parse only when this exact image was uploaded before.
-        existing = uow.session.execute(
-            text("SELECT id FROM poster_assets WHERE content_sha256 = :sha"),
-            {"sha": content_sha256_hex},
-        ).first()
-        if existing:
-            poster_asset_id = existing[0]
-            parsed = _load_parsed(poster_asset_id)
-            if parsed is not None:
+            poster_id = store.put(content_type=file.content_type or "application/octet-stream", image_bytes=image_bytes)
+            now = datetime.now(timezone.utc)
+            poster_asset_id = uuid4()
+            uow.session.execute(
+                text(
+                    """
+                    INSERT INTO poster_assets (id, dhash64, content_sha256, poster_id, content_type, created_at)
+                    VALUES (:id, :dhash64, :content_sha256, :poster_id, :content_type, :created_at)
+                    """
+                ),
+                {
+                    "id": str(poster_asset_id),
+                    "dhash64": dh_hex,
+                    "content_sha256": content_sha256_hex,
+                    "poster_id": str(poster_id),
+                    "content_type": file.content_type or "application/octet-stream",
+                    "created_at": now,
+                },
+            )
+
+            if target_draft_id is not None:
+                if gemini is None:
+                    raise HTTPException(status_code=500, detail="Gemini client not configured")
+                parsed_img = gemini.parse_event_image(image_bytes=image_bytes, content_type=file.content_type)
                 out = _persist_or_merge_poster_parsed(
                     target_draft_id=target_draft_id,
                     user_id=user_id,
-                    parsed=parsed,
+                    parsed=parsed_img,
                     uow=uow,
                 )
-                _link_source(poster_asset_id=poster_asset_id, draft_id=out["draft_id"])
-                uow.commit()
-                r.set(_poster_cache_key_sha256(content_sha256_hex), str(poster_asset_id), ex=30 * 24 * 3600)
-                return SharePosterResponse(
-                    draft_id=out["draft_id"],
-                    title=out["title"],
-                    start_time=out["start_time"],
-                    venue=out["venue"],
-                    confidence_score=out["confidence_score"],
-                    poster_asset_id=poster_asset_id,
-                    source_url_raw=source_url,
-                    price=out.get("price"),
+            else:
+                out = handlers.handle_capture_event_upload_image(
+                    commands.CaptureEventUploadImage(user_id=user_id, image_bytes=image_bytes),
+                    uow,
+                    gemini=gemini,
                 )
 
-        poster_id = store.put(content_type=file.content_type or "application/octet-stream", image_bytes=image_bytes)
-        now = datetime.now(timezone.utc)
-        poster_asset_id = uuid4()
-        uow.session.execute(
-            text(
-                """
-                INSERT INTO poster_assets (id, dhash64, content_sha256, poster_id, content_type, created_at)
-                VALUES (:id, :dhash64, :content_sha256, :poster_id, :content_type, :created_at)
-                """
-            ),
-            {
-                "id": str(poster_asset_id),
-                "dhash64": dh_hex,
-                "content_sha256": content_sha256_hex,
-                "poster_id": str(poster_id),
-                "content_type": file.content_type or "application/octet-stream",
-                "created_at": now,
-            },
-        )
-
-        if target_draft_id is not None:
-            if gemini is None:
-                raise HTTPException(status_code=500, detail="Gemini client not configured")
-            parsed_img = gemini.parse_event_image(image_bytes=image_bytes, content_type=file.content_type)
-            out = _persist_or_merge_poster_parsed(
-                target_draft_id=target_draft_id,
-                user_id=user_id,
-                parsed=parsed_img,
-                uow=uow,
-            )
-        else:
-            out = handlers.handle_capture_event_upload_image(
-                commands.CaptureEventUploadImage(user_id=user_id, image_bytes=image_bytes),
-                uow,
-                gemini=gemini,
-            )
-
-        # Persist parsed payload for reuse.
-        uow.session.execute(
-            text(
-                """
-                INSERT INTO poster_asset_parses (id, poster_asset_id, parsed_json, model_version, created_at)
-                VALUES (:id, :poster_asset_id, :parsed_json, :model_version, :created_at)
-                ON CONFLICT (poster_asset_id) DO UPDATE SET
-                  parsed_json = EXCLUDED.parsed_json,
-                  model_version = EXCLUDED.model_version,
-                  created_at = EXCLUDED.created_at
-                """
-            ),
-            {
-                "id": str(uuid4()),
-                "poster_asset_id": str(poster_asset_id),
-                "parsed_json": Json(
-                    {
-                        "title": out.get("title"),
-                        "start_time": out.get("start_time").isoformat() if out.get("start_time") else None,
-                        "venue": out.get("venue"),
-                        "confidence_score": out.get("confidence_score"),
-                        "price": out.get("price"),
-                    }
+            # Persist parsed payload for reuse.
+            uow.session.execute(
+                text(
+                    """
+                    INSERT INTO poster_asset_parses (id, poster_asset_id, parsed_json, model_version, created_at)
+                    VALUES (:id, :poster_asset_id, :parsed_json, :model_version, :created_at)
+                    ON CONFLICT (poster_asset_id) DO UPDATE SET
+                      parsed_json = EXCLUDED.parsed_json,
+                      model_version = EXCLUDED.model_version,
+                      created_at = EXCLUDED.created_at
+                    """
                 ),
-                "model_version": getattr(settings, "gemini_model", "unknown"),
-                "created_at": now,
-            },
+                {
+                    "id": str(uuid4()),
+                    "poster_asset_id": str(poster_asset_id),
+                    "parsed_json": Json(
+                        {
+                            "title": out.get("title"),
+                            "start_time": out.get("start_time").isoformat() if out.get("start_time") else None,
+                            "venue": out.get("venue"),
+                            "confidence_score": out.get("confidence_score"),
+                            "price": out.get("price"),
+                        }
+                    ),
+                    "model_version": getattr(settings, "gemini_model", "unknown"),
+                    "created_at": now,
+                },
+            )
+
+            # Link this user's draft to the poster + source URL.
+            _link_source(poster_asset_id=poster_asset_id, draft_id=out["draft_id"])
+            uow.commit()
+
+        r.set(_poster_cache_key_sha256(content_sha256_hex), str(poster_asset_id), ex=30 * 24 * 3600)
+
+        return SharePosterResponse(
+            draft_id=out["draft_id"],
+            title=out["title"],
+            start_time=out["start_time"],
+            venue=out["venue"],
+            confidence_score=out["confidence_score"],
+            poster_asset_id=poster_asset_id,
+            source_url_raw=source_url,
+            price=out.get("price"),
         )
-
-        # Link this user's draft to the poster + source URL.
-        _link_source(poster_asset_id=poster_asset_id, draft_id=out["draft_id"])
-        uow.commit()
-
-    r.set(_poster_cache_key_sha256(content_sha256_hex), str(poster_asset_id), ex=30 * 24 * 3600)
-
-    return SharePosterResponse(
-        draft_id=out["draft_id"],
-        title=out["title"],
-        start_time=out["start_time"],
-        venue=out["venue"],
-        confidence_score=out["confidence_score"],
-        poster_asset_id=poster_asset_id,
-        source_url_raw=source_url,
-        price=out.get("price"),
-    )
+    finally:
+        try:
+            r.close()
+        except Exception:
+            pass
 
 
 @router.post("/share/ics", status_code=status.HTTP_201_CREATED, response_model=EventDraftResponse)

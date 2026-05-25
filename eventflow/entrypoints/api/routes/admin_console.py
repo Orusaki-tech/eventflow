@@ -410,7 +410,7 @@ async def admin_console_update_shared_link_listing(
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shared link not found")
 
-    existing_payload = dict(row[2]) if row[2] else {}
+    existing_payload = dict(row[3]) if row[3] else {}
     if body.title is not None:
         existing_payload["title"] = body.title
     if body.venue is not None:
@@ -423,7 +423,7 @@ async def admin_console_update_shared_link_listing(
     if body.price is not None:
         existing_payload["price"] = body.price
 
-    new_status = body.status if body.status else row[1]
+    new_status = body.status if body.status else row[2]
 
     session.execute(
         text(

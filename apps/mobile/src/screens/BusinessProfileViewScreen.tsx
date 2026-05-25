@@ -23,7 +23,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "BusinessProfileView">;
 export function BusinessProfileViewScreen({ route }: Props) {
   const { businessId } = route.params;
   const { colors } = useTheme();
-  const { accessToken, refreshSession } = useAuth();
+  const { accessToken, refreshSession, apiBaseUrl } = useAuth();
   const styles = useThemedStyles((c) => ({
     root: { flex: 1, backgroundColor: c.bg },
     scrollContent: { padding: tokens.spacing[16], gap: tokens.spacing[16], paddingBottom: 40 },
@@ -43,11 +43,11 @@ export function BusinessProfileViewScreen({ route }: Props) {
   const [err, setErr] = useState<string | null>(null);
   const [followBusy, setFollowBusy] = useState(false);
 
-  useEffect(() => {
+   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const p = await getBusinessProfile(apiBaseUrl(), businessId);
+        const p = await getBusinessProfile(apiBaseUrl, businessId);
         if (!cancelled) setProfile(p);
       } catch (e: unknown) {
         if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
@@ -56,30 +56,30 @@ export function BusinessProfileViewScreen({ route }: Props) {
       }
     })();
     return () => { cancelled = true; };
-  }, [businessId]);
+  }, [businessId, apiBaseUrl]);
 
   useEffect(() => {
     if (!accessToken) return;
     let cancelled = false;
     void (async () => {
       try {
-        const { following: f } = await getFollowBusiness(apiBaseUrl(), accessToken, businessId);
+        const { following: f } = await getFollowBusiness(apiBaseUrl, accessToken, businessId);
         if (!cancelled) setFollowing(f);
       } catch { /* not critical */ }
     })();
     return () => { cancelled = true; };
-  }, [accessToken, businessId]);
+  }, [accessToken, businessId, apiBaseUrl]);
 
   const toggleFollow = async () => {
     if (!accessToken) return;
     setFollowBusy(true);
     try {
       if (following) {
-        await deleteFollowBusiness(apiBaseUrl(), accessToken, businessId);
+        await deleteFollowBusiness(apiBaseUrl, accessToken, businessId);
         setFollowing(false);
         setProfile((p) => p ? { ...p, follower_count: Math.max(0, p.follower_count - 1) } : p);
       } else {
-        await postFollowBusiness(apiBaseUrl(), accessToken, businessId);
+        await postFollowBusiness(apiBaseUrl, accessToken, businessId);
         setFollowing(true);
         setProfile((p) => p ? { ...p, follower_count: p.follower_count + 1 } : p);
       }
@@ -89,11 +89,6 @@ export function BusinessProfileViewScreen({ route }: Props) {
       setFollowBusy(false);
     }
   };
-
-  function apiBaseUrl(): string {
-    const u = (globalThis as any).EXPO_PUBLIC_API_BASE_URL as string | undefined;
-    return u ?? "http://localhost:8080";
-  }
 
   if (loading) {
     return (
@@ -129,27 +124,27 @@ export function BusinessProfileViewScreen({ route }: Props) {
           <AppText variant="labelSmall" tone="tertiary">{profile.listing_count} listing{profile.listing_count !== 1 ? "s" : ""}</AppText>
         </View>
         {profile.description ? <AppText style={{ textAlign: "center" }}>{profile.description}</AppText> : null}
-         {accessToken ? (
-           <Button
-             label={following ? "Following" : "Follow"}
-             variant={following ? "outline" : "filled"}
-             onPress={toggleFollow}
-             disabled={followBusy}
-           />
-         ) : null}
+        {accessToken ? (
+          <Button
+            label={following ? "Following" : "Follow"}
+            variant={following ? "outline" : "filled"}
+            onPress={toggleFollow}
+            disabled={followBusy}
+          />
+        ) : null}
       </Card>
 
       {profile.website || profile.contact_email || profile.whatsapp_e164 ? (
         <Card style={styles.section}>
           <AppText variant="title">Contact</AppText>
           {profile.website ? (
-            <Pressable {...pressedOpacityStyle} onPress={() => Linking.openURL(profile.website!)}>
+            <Pressable style={({ pressed }) => pressedOpacityStyle(pressed)} onPress={() => Linking.openURL(profile.website!)}>
               <AppText style={{ color: colors.textPrimary }}>🌐 {profile.website}</AppText>
             </Pressable>
           ) : null}
           {profile.contact_email ? <AppText>✉ {profile.contact_email}</AppText> : null}
           {profile.whatsapp_e164 ? (
-            <Pressable {...pressedOpacityStyle} onPress={() => {
+            <Pressable style={({ pressed }) => pressedOpacityStyle(pressed)} onPress={() => {
               const url = whatsAppMeUrlFromE164(profile.whatsapp_e164!);
               if (url) Linking.openURL(url);
             }}>
@@ -167,7 +162,7 @@ export function BusinessProfileViewScreen({ route }: Props) {
         profile.listings.map((l) => (
           <Pressable
             key={l.community_event_id}
-            {...pressedOpacityStyle}
+            style={({ pressed }) => pressedOpacityStyle(pressed)}
             onPress={() =>
               navigationRef.navigate("CommunityListingDetail", {
                 communityEventId: l.community_event_id,

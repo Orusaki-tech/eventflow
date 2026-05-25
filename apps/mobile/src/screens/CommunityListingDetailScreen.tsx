@@ -95,13 +95,15 @@ export function CommunityListingDetailScreen({ route }: Props) {
       setCarouselLoading(true);
       setCarouselError(null);
       try {
-        const [res, followRes] = await Promise.all([
+        const [res, followRes, userFollowRes] = await Promise.all([
           getListingCarousel(apiBaseUrl, accessToken, communityEventId),
           business_id && accessToken ? getFollowBusiness(apiBaseUrl, accessToken, business_id) : Promise.resolve(null),
+          organizerUserId && accessToken ? getFollowBusiness(apiBaseUrl, accessToken, organizerUserId) : Promise.resolve(null),
         ]);
         if (!cancelled) {
           setSlides(res.slides ?? []);
           if (followRes) setBizFollowing(followRes.following);
+          if (userFollowRes) setFollowing(userFollowRes.following);
         }
       } catch (e: unknown) {
         if (!cancelled) {
@@ -115,7 +117,7 @@ export function CommunityListingDetailScreen({ route }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [accessToken, apiBaseUrl, communityEventId, business_id]);
+  }, [accessToken, apiBaseUrl, communityEventId, business_id, organizerUserId]);
 
   const canFollow =
     Boolean(accessToken && organizerUserId && authUserId && organizerUserId.toLowerCase() !== authUserId.toLowerCase());
