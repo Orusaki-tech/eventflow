@@ -75,6 +75,9 @@ jobs:
                 done
               '
 
+              # Authenticate Docker to Artifact Registry
+              sudo gcloud auth configure-docker --quiet ${REGION}-docker.pkg.dev 2>/dev/null || true
+
               # Pull the pre-built image from Artifact Registry
               sudo IMAGE_TAG=${{ env.IMAGE_TAG }} docker compose pull
 
