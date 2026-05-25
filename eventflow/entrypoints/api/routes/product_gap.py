@@ -452,6 +452,11 @@ async def listing_analytics(
 ):
     if session is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
+    
+    # Validate: at least one target (community_event_id or business_id) must be set
+    if not body.community_event_id and not body.business_id:
+        raise HTTPException(status_code=400, detail="Either community_event_id or business_id is required")
+    
     aid = uuid4()
     now = datetime.now(timezone.utc)
     session.execute(

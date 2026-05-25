@@ -273,6 +273,7 @@ business_follows = Table(
     Column("business_id", PG_UUID(as_uuid=True), nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
     PrimaryKeyConstraint("follower_user_id", "business_id", name="pk_business_follows"),
+    ForeignKeyConstraint(["follower_user_id"], ["auth_users.id"], name="fk_business_follows_follower", ondelete="CASCADE"),
     ForeignKeyConstraint(["business_id"], ["businesses.id"], name="fk_business_follows_business", ondelete="CASCADE"),
 )
 Index("ix_business_follows_follower", business_follows.c.follower_user_id)

@@ -128,6 +128,7 @@ async def upsert_community_event(
 @router.get("/discovery/business/{business_id}", response_model=BusinessProfileResponse)
 async def discovery_business_profile(
     business_id: UUID,
+    limit: int = Query(default=50, ge=1, le=200),
     session=Depends(get_session),
 ):
     if session is None:
@@ -165,10 +166,10 @@ async def discovery_business_profile(
             ) v ON TRUE
             WHERE bl.business_id = :id AND e.start_time > NOW()
             ORDER BY e.start_time ASC
-            LIMIT 50
+            LIMIT :lim
             """
         ),
-        {"id": str(business_id)},
+        {"id": str(business_id), "lim": limit},
     ).fetchall()
 
     listing_rows = [

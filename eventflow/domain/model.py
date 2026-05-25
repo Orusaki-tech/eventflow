@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import List, Optional
@@ -21,10 +21,13 @@ class EventVisibility(str, Enum):
 
 
 @dataclass(frozen=True)
+@dataclass(frozen=True)
 class Alert:
     alert_type: AlertType
     trigger_at: datetime
     message: str
+    event_id: UUID
+    id: UUID = field(default_factory=uuid4)
 
 
 @dataclass(frozen=True)

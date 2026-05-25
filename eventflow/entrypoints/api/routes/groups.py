@@ -254,6 +254,16 @@ async def pin_group_event(
             raise HTTPException(status_code=404, detail="Group not found")
         if g.owner_user_id != user_id:
             raise HTTPException(status_code=403, detail="Only owner can pin")
+        
+        # Validate: if event_id is set, it must belong to this group
+        if body.event_id:
+            event_row = uow.session.execute(  # type: ignore[attr-defined]
+                text("SELECT 1 FROM group_events WHERE id = :e AND group_id = :g LIMIT 1"),
+                {"e": str(body.event_id), "g": str(group_id)},
+            ).first()
+            if event_row is None:
+                raise HTTPException(status_code=400, detail="Event does not belong to this group")
+        
         uow.session.execute(  # type: ignore[attr-defined]
             text("UPDATE groups SET pinned_event_id = :e WHERE id = :g"),
             {"g": str(group_id), "e": str(body.event_id) if body.event_id else None},
