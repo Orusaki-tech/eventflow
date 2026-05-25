@@ -68,11 +68,3 @@ jobs:
 
           docker push "${SHA_TAG}"
           docker push "${LATEST_TAG}"
-
-  deploy:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [build-and-push]
-    uses: ./.github/workflows/deploy.yml
-    with:
-      head_sha: ${{ github.sha }}
-    secrets: inherit

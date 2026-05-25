@@ -1,11 +1,10 @@
 name: Deploy
 
 on:
-  workflow_call:
-    inputs:
-      head_sha:
-        required: true
-        type: string
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
 
 env:
   REGION: us-central1
@@ -14,6 +13,7 @@ env:
 
 jobs:
   deploy:
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -34,7 +34,7 @@ jobs:
       - name: Resolve image tag
         shell: bash
         run: |
-          SHA="${{ inputs.head_sha }}"
+          SHA="${{ github.event.workflow_run.head_sha }}"
           echo "IMAGE_TAG=${REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${ARTIFACT_REGISTRY_REPO}/${IMAGE_NAME}:${SHA}" >> $GITHUB_ENV
 
       - name: Deploy to GCE VM
