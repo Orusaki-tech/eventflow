@@ -116,41 +116,40 @@ jobs:
             --quiet \
             --command "export IMAGE_TAG=${{ env.IMAGE_TAG }}; export REGION=${REGION}; export DOMAIN=${{ vars.DOMAIN }}; bash /tmp/run_deploy.sh"
 
-- name: Health check
-  shell: bash
-  run: |
-    DOMAIN="${{ vars.DOMAIN }}"
-    if [ -n "${DOMAIN}" ]; then
-      URL="https://${DOMAIN}/api/v1/healthz"
-    else
-      IP=$(gcloud compute instances describe ${{ vars.VM_NAME }} \
-        --zone ${{ vars.ZONE }} \
-        --project ${{ secrets.GCP_PROJECT_ID }} \
-        --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
-      URL="http://${IP}/api/v1/healthz"
-    fi
-    echo "Computed Health Check URL: ${URL}"
-    for i in $(seq 1 40); do
-      if curl -fsS --max-time 3 "${URL}" >/dev/null 2>&1; then
-        echo " API healthy at ${URL}"
-        exit 0
-      fi
-      sleep 3
-    done
-    echo "WARN: health check failed after ~120s" >&2
-    exit 1
+      - name: Health check
+        shell: bash
+        run: |
+          DOMAIN="${{ vars.DOMAIN }}"
+          if [ -n "${DOMAIN}" ]; then
+            URL="https://${DOMAIN}/api/v1/healthz"
+          else
+            IP=$(gcloud compute instances describe ${{ vars.VM_NAME }} \
+              --zone ${{ vars.ZONE }} \
+              --project ${{ secrets.GCP_PROJECT_ID }} \
+              --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+            URL="http://${IP}/api/v1/healthz"
+          fi
+          echo "Computed Health Check URL: ${URL}"
+          for i in $(seq 1 40); do
+            if curl -fsS --max-time 3 "${URL}" >/dev/null 2>&1; then
+              echo "API healthy at ${URL}"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "WARN: health check failed after ~120s" >&2
+          exit 1
 
-- name: Dump failing service logs
-  if: failure()
-  run: |
-    gcloud compute ssh ${{ vars.VM_NAME }} \
-      --zone ${{ vars.ZONE }} \
-      --quiet \
-      --command "\
-        echo '\n# docker ps -a\n' && sudo docker ps -a
-        echo '\n# docker-compose ps\n' && cd /opt/eventflow && sudo docker compose ps
-        echo '\n# docker-compose logs caddy\n' && cd /opt/eventflow && sudo docker compose logs --tail=100 caddy
-        echo '\n# docker-compose logs api\n' && cd /opt/eventflow && sudo docker compose logs --tail=100 api
-        echo '\n# sudo ss -plnt\n' && sudo ss -plnt
-      "
-
+      - name: Dump failing service logs
+        if: failure()
+        run: |
+          gcloud compute ssh ${{ vars.VM_NAME }} \
+            --zone ${{ vars.ZONE }} \
+            --quiet \
+            --command "\
+              echo '\n# docker ps -a\n' && sudo docker ps -a
+              echo '\n# docker-compose ps\n' && cd /opt/eventflow && sudo docker compose ps
+              echo '\n# docker-compose logs caddy\n' && cd /opt/eventflow && sudo docker compose logs --tail=100 caddy
+              echo '\n# docker-compose logs api\n' && cd /opt/eventflow && sudo docker compose logs --tail=100 api
+              echo '\n# sudo ss -plnt\n' && sudo ss -plnt
+            "
