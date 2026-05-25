@@ -82,8 +82,8 @@ jobs:
               # Pull only the API image (other images are cached)
               sudo docker pull ${{ env.IMAGE_TAG }}
 
-              # Start the stack
-              sudo IMAGE_TAG=${{ env.IMAGE_TAG }} docker compose up -d --remove-orphans
+              # Start only essential services (e2-small can't run all workers)
+              sudo IMAGE_TAG=${{ env.IMAGE_TAG }} docker compose up -d --remove-orphans api caddy redis
 
               # Run migrations (with timeout to avoid hanging on DB issues)
               sleep 10
@@ -104,7 +104,7 @@ jobs:
             IP=$(gcloud compute instances describe ${{ vars.VM_NAME }} \
               --zone ${{ vars.ZONE }} \
               --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
-            URL="http://${IP}:8000/api/v1/healthz"
+            URL="http://${IP}/api/v1/healthz"
           fi
           for i in $(seq 1 20); do
             if curl -fsS --max-time 3 "${URL}" >/dev/null 2>&1; then
