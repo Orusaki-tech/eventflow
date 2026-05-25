@@ -54,6 +54,8 @@ jobs:
           # Use a script file instead of passing complex bash commands in a string
           cat << 'EOF' > run_deploy.sh
           set -e
+          # Empty DOMAIN= prevents Caddy {$DOMAIN::80} from falling back to :80.
+          if [ -z "${DOMAIN:-}" ]; then unset DOMAIN; fi
 
           cd /opt/eventflow
 
@@ -84,9 +86,12 @@ jobs:
           # Pull only the API image (other images are cached)
           sudo docker pull ${IMAGE_TAG}
 
-          # Start all essential services and workers
-          # Inject DOMAIN so Caddy can automatically provision HTTPS if set
-          sudo IMAGE_TAG=${IMAGE_TAG} DOMAIN=${DOMAIN} docker compose up -d --remove-orphans
+          # Start all essential services and workers (DOMAIN only when set — see Caddyfile)
+          if [ -n "${DOMAIN:-}" ]; then
+            sudo IMAGE_TAG=${IMAGE_TAG} DOMAIN="${DOMAIN}" docker compose up -d --remove-orphans
+          else
+            sudo IMAGE_TAG=${IMAGE_TAG} docker compose up -d --remove-orphans
+          fi
 
           # Run migrations (with timeout to avoid hanging on DB issues)
           sleep 10
@@ -114,7 +119,7 @@ jobs:
           gcloud compute ssh ${{ vars.VM_NAME }} \
             --zone ${{ vars.ZONE }} \
             --quiet \
-            --command "export IMAGE_TAG=${{ env.IMAGE_TAG }}; export REGION=${REGION}; export DOMAIN=${{ vars.DOMAIN }}; bash /tmp/run_deploy.sh"
+            --command "export IMAGE_TAG=${{ env.IMAGE_TAG }}; export REGION=${REGION}; if [ -n '${{ vars.DOMAIN }}' ]; then export DOMAIN='${{ vars.DOMAIN }}'; fi; bash /tmp/run_deploy.sh"
 
       - name: Health check
         shell: bash
@@ -127,7 +132,7 @@ jobs:
               --zone ${{ vars.ZONE }} \
               --project ${{ secrets.GCP_PROJECT_ID }} \
               --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
-            URL="http://${IP}/api/v1/healthz"
+            URL="http://${IP}:8000/api/v1/healthz"
           fi
           echo "Computed Health Check URL: ${URL}"
           for i in $(seq 1 40); do

@@ -14,8 +14,9 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
+    # Pass DOMAIN only when set on the host (empty DOMAIN= breaks {$DOMAIN::80} in Caddyfile).
     environment:
-      - DOMAIN=${DOMAIN:-}
+      - DOMAIN
     depends_on:
       api:
         condition: service_started
@@ -26,8 +27,8 @@ services:
     build: .
     command: uvicorn eventflow.entrypoints.fastapi_app:app --host 0.0.0.0 --port 8000
     restart: unless-stopped
-    expose:
-      - "8000"
+    ports:
+      - "8000:8000"
     depends_on:
       redis:
         condition: service_healthy
