@@ -26,7 +26,7 @@ def upgrade() -> None:
         sa.Column("id", sa.VARCHAR(length=191), autoincrement=False, nullable=False),
         sa.Column(
             "next_run_time",
-            sa.Float(timezone=True),
+            sa.Float(),
             autoincrement=False,
             nullable=True,
         ),
