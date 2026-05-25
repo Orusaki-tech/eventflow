@@ -21,7 +21,6 @@ class EventVisibility(str, Enum):
 
 
 @dataclass(frozen=True)
-@dataclass(frozen=True)
 class Alert:
     alert_type: AlertType
     trigger_at: datetime

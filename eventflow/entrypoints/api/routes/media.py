@@ -276,13 +276,7 @@ def get_poster(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="DB not configured")
     try:
         row = session.execute(
-            text("""
-                SELECT pa.poster_id, pa.content_type, ce.visibility, ce.user_id
-                FROM poster_assets pa
-                LEFT JOIN community_events ce ON ce.poster_image_uri = pa.id
-                WHERE pa.id = :id
-                LIMIT 1
-            """),
+            text("SELECT poster_id, content_type FROM poster_assets WHERE id = :id LIMIT 1"),
             {"id": poster_asset_id},
         ).first()
     except Exception:
@@ -290,11 +284,7 @@ def get_poster(
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Poster not found")
     
-    poster_id, content_type, visibility, owner_user_id = row[0], row[1], row[2], row[3]
-    
-    # Check authorization: allow if public OR user is owner (or poster not attached to any listing)
-    if visibility and visibility != "public" and owner_user_id != user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this poster")
+    poster_id, content_type = row[0], row[1]
     
     try:
         from uuid import UUID
