@@ -17,6 +17,26 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # On standard Postgres environments, auth_users might not exist (managed by Supabase auth in prod)
+    # Create a stub auth_users table if it doesn't exist so foreign keys don't break.
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT FROM pg_class 
+                WHERE relname = 'auth_users' 
+                AND relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')
+            ) THEN
+                CREATE TABLE auth_users (
+                    id UUID PRIMARY KEY,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                );
+            END IF;
+        END $$;
+        """
+    )
+
     # Add foreign key constraints to follows table (both sides)
     op.create_foreign_key(
         "fk_follows_follower",
