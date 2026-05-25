@@ -91,7 +91,7 @@ jobs:
           # Run migrations (with timeout to avoid hanging on DB issues)
           sleep 10
           success=false
-          for i in \$(seq 1 5); do
+          for i in $(seq 1 5); do
             if timeout 30 sudo docker compose exec -T api alembic upgrade heads; then
               success=true
               break
@@ -100,7 +100,7 @@ jobs:
             sleep 5
           done
 
-          if [ "\$success" = "false" ]; then
+          if [ "$success" = "false" ]; then
             echo "FATAL: alembic migration failed after 5 attempts" >&2
             exit 1
           fi
