@@ -44,11 +44,11 @@ jobs:
             docker-compose.yml Dockerfile alembic.ini pyproject.toml \
             .env.example eventflow/ migrations/ requirements.txt
 
-          # Copy bundle to VM
+          # Copy bundle to VM (use /tmp where SSH user can write)
           gcloud compute scp \
             --zone ${{ vars.ZONE }} \
             --quiet \
-            /tmp/deploy.tar.gz ${{ vars.VM_NAME }}:/opt/eventflow/deploy.tar.gz
+            /tmp/deploy.tar.gz ${{ vars.VM_NAME }}:/tmp/deploy.tar.gz
 
           gcloud compute ssh ${{ vars.VM_NAME }} \
             --zone ${{ vars.ZONE }} \
@@ -58,9 +58,9 @@ jobs:
 
               cd /opt/eventflow
 
-              # Extract bundle
-              tar xzf deploy.tar.gz
-              rm -f deploy.tar.gz
+              # Extract bundle (/tmp is writable by SSH user)
+              sudo tar xzf /tmp/deploy.tar.gz
+              rm -f /tmp/deploy.tar.gz
 
               # Pull secrets from Secret Manager into .env
               sudo bash -c '
