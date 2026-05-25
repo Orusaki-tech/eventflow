@@ -19,7 +19,7 @@ from eventflow.adapters.image_token_store import ImageTokenStore
 from eventflow.adapters.poster_store import PosterStore
 from eventflow.domain.exceptions import InvariantViolation
 from eventflow.entrypoints.api.schemas import ResolveImageRequest, ResolveImageResponse
-from eventflow.entrypoints.dependencies import get_image_token_store, get_poster_store, get_session
+from eventflow.entrypoints.dependencies import get_image_token_store, get_poster_store, get_session, get_current_user_id
 from eventflow.service_layer.handlers import _is_private_address
 
 
@@ -235,6 +235,7 @@ def _resolve_preview_image_bytes(shared_url: str) -> tuple[bytes, str]:
 @router.post("/media/resolve-image", status_code=status.HTTP_200_OK, response_model=ResolveImageResponse)
 def resolve_image(
     body: ResolveImageRequest,
+    user_id=Depends(get_current_user_id),
     store: ImageTokenStore = Depends(get_image_token_store),
 ):
     try:
@@ -267,6 +268,7 @@ def get_image(
 @router.get("/media/poster/{poster_asset_id}", response_class=Response)
 def get_poster(
     poster_asset_id: str,
+    user_id=Depends(get_current_user_id),
     session=Depends(get_session),
     store: PosterStore = Depends(get_poster_store),
 ):
@@ -274,17 +276,28 @@ def get_poster(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="DB not configured")
     try:
         row = session.execute(
-            text("SELECT poster_id, content_type FROM poster_assets WHERE id = :id"),
+            text("""
+                SELECT pa.poster_id, pa.content_type, ce.visibility, ce.user_id
+                FROM poster_assets pa
+                LEFT JOIN community_events ce ON ce.poster_image_uri = pa.id
+                WHERE pa.id = :id
+                LIMIT 1
+            """),
             {"id": poster_asset_id},
         ).first()
     except Exception:
         row = None
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Poster not found")
-    poster_id, content_type = row[0], row[1]
+    
+    poster_id, content_type, visibility, owner_user_id = row[0], row[1], row[2], row[3]
+    
+    # Check authorization: allow if public OR user is owner (or poster not attached to any listing)
+    if visibility and visibility != "public" and owner_user_id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this poster")
+    
     try:
         from uuid import UUID
-
         pid = UUID(str(poster_id))
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Poster not found")
