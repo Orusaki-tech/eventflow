@@ -42,7 +42,8 @@ jobs:
           # Bundle files to deploy
           tar czf /tmp/deploy.tar.gz \
             docker-compose.yml Dockerfile alembic.ini pyproject.toml \
-            .env.example eventflow/ migrations/ requirements.txt
+            .env.example eventflow/ migrations/ requirements.txt \
+            prometheus.yml Caddyfile grafana/
 
           # Copy bundle to VM (use /tmp where SSH user can write)
           gcloud compute scp \
