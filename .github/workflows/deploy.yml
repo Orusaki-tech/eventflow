@@ -51,62 +51,70 @@ jobs:
             --quiet \
             /tmp/deploy.tar.gz ${{ vars.VM_NAME }}:/tmp/deploy.tar.gz
 
+          # Use a script file instead of passing complex bash commands in a string
+          cat << 'EOF' > run_deploy.sh
+          set -e
+
+          cd /opt/eventflow
+
+          # Extract bundle (/tmp is writable by SSH user)
+          sudo tar xzf /tmp/deploy.tar.gz
+          rm -f /tmp/deploy.tar.gz
+
+          # Pull secrets from Secret Manager securely
+          cat << 'INNEREOF' > /tmp/pull_secrets.sh
+          #!/bin/bash
+          : > /opt/eventflow/.env
+          chmod 600 /opt/eventflow/.env
+          for secret in \$(gcloud secrets list --filter="labels.service=eventflow" --format="value(name)" 2>/dev/null); do
+            key=\$(echo "\$secret" | sed 's/^eventflow-//' | tr '[:lower:]' '[:upper:]')
+            val=\$(gcloud secrets versions access latest --secret="\$secret" 2>/dev/null || true)
+            if [ -n "\$val" ]; then
+              val_escaped=\$(echo "\$val" | sed "s/'/'\\\\''/g")
+              echo "\$key='\$val_escaped'" >> /opt/eventflow/.env
+            fi
+          done
+          INNEREOF
+          sudo bash /tmp/pull_secrets.sh
+          rm -f /tmp/pull_secrets.sh
+
+          # Authenticate Docker to Artifact Registry
+          sudo gcloud auth configure-docker --quiet ${REGION}-docker.pkg.dev 2>/dev/null || true
+
+          # Pull only the API image (other images are cached)
+          sudo docker pull ${IMAGE_TAG}
+
+          # Start all essential services and workers
+          # Inject DOMAIN so Caddy can automatically provision HTTPS if set
+          sudo IMAGE_TAG=${IMAGE_TAG} DOMAIN=${DOMAIN} docker compose up -d --remove-orphans
+
+          # Run migrations (with timeout to avoid hanging on DB issues)
+          sleep 10
+          success=false
+          for i in \$(seq 1 5); do
+            if timeout 30 sudo docker compose exec -T api alembic upgrade heads; then
+              success=true
+              break
+            fi
+            echo "alembic attempt \$i failed, retrying…"
+            sleep 5
+          done
+
+          if [ "\$success" = "false" ]; then
+            echo "FATAL: alembic migration failed after 5 attempts" >&2
+            exit 1
+          fi
+          EOF
+
+          gcloud compute scp \
+            --zone ${{ vars.ZONE }} \
+            --quiet \
+            run_deploy.sh ${{ vars.VM_NAME }}:/tmp/run_deploy.sh
+
           gcloud compute ssh ${{ vars.VM_NAME }} \
             --zone ${{ vars.ZONE }} \
             --quiet \
-            --command "
-              set -e
-
-              cd /opt/eventflow
-
-              # Extract bundle (/tmp is writable by SSH user)
-              sudo tar xzf /tmp/deploy.tar.gz
-              rm -f /tmp/deploy.tar.gz
-
-              # Pull secrets from Secret Manager securely
-              cat << 'INNEREOF' > /tmp/pull_secrets.sh
-              #!/bin/bash
-              : > /opt/eventflow/.env
-              chmod 600 /opt/eventflow/.env
-              for secret in \$(gcloud secrets list --filter="labels.service=eventflow" --format="value(name)" 2>/dev/null); do
-                key=\$(echo "\$secret" | sed 's/^eventflow-//' | tr '[:lower:]' '[:upper:]')
-                val=\$(gcloud secrets versions access latest --secret="\$secret" 2>/dev/null || true)
-                if [ -n "\$val" ]; then
-                  val_escaped=\$(echo "\$val" | sed "s/'/'\\\\''/g")
-                  echo "\$key='\$val_escaped'" >> /opt/eventflow/.env
-                fi
-              done
-              INNEREOF
-              sudo bash /tmp/pull_secrets.sh
-              rm -f /tmp/pull_secrets.sh
-
-              # Authenticate Docker to Artifact Registry
-              sudo gcloud auth configure-docker --quiet ${REGION}-docker.pkg.dev 2>/dev/null || true
-
-              # Pull only the API image (other images are cached)
-              sudo docker pull ${{ env.IMAGE_TAG }}
-
-              # Start all essential services and workers
-              # Inject DOMAIN so Caddy can automatically provision HTTPS if set
-              sudo IMAGE_TAG=${{ env.IMAGE_TAG }} DOMAIN=${{ vars.DOMAIN }} docker compose up -d --remove-orphans
-
-              # Run migrations (with timeout to avoid hanging on DB issues)
-              sleep 10
-              success=false
-              for i in \$(seq 1 5); do
-                if timeout 30 sudo docker compose exec -T api alembic upgrade heads; then
-                  success=true
-                  break
-                fi
-                echo "alembic attempt \$i failed, retrying…"
-                sleep 5
-              done
-
-              if [ "\$success" = "false" ]; then
-                echo "FATAL: alembic migration failed after 5 attempts" >&2
-                exit 1
-              fi
-            "
+            --command "export IMAGE_TAG=${{ env.IMAGE_TAG }}; export REGION=${REGION}; export DOMAIN=${{ vars.DOMAIN }}; bash /tmp/run_deploy.sh"
 
       - name: Health check
         shell: bash
