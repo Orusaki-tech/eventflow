@@ -18,11 +18,20 @@ def _load_env_file(path: Path) -> None:
         key, _, val = line.partition("=")
         key = key.strip()
         val = val.strip().strip('"').strip("'")
-        if key and key not in os.environ:
+        if key:
             os.environ[key] = val
 
 
 _load_env_file(Path(__file__).resolve().parents[1] / ".env")
+
+
+def _normalize_db_url(url: str) -> str:
+    """Use psycopg3 driver; plain postgresql:// defaults to psycopg2 in SQLAlchemy."""
+    if url.startswith("postgresql+psycopg://"):
+        return url
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg://" + url[len("postgresql://") :]
+    return url
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -38,6 +47,7 @@ settings = Settings()
 db_url = settings.effective_db_url
 
 if db_url:
+    db_url = _normalize_db_url(db_url)
     # ConfigParser treats "%" specially; double them so URL-encoded passwords survive set/get.
     config.set_main_option("sqlalchemy.url", db_url.replace("%", "%%"))
 
@@ -82,11 +92,13 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    url = config.get_main_option("sqlalchemy.url")
+    if not url:
+        raise RuntimeError("sqlalchemy.url is not configured (set DB_URL in .env)")
+    url = _normalize_db_url(url.replace("%%", "%"))
+    from sqlalchemy import create_engine
+
+    connectable = create_engine(url, poolclass=pool.NullPool)
 
     with connectable.connect() as connection:
         context.configure(

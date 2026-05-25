@@ -37,6 +37,44 @@ def upgrade() -> None:
         """
     )
 
+    # Supabase stores users in auth.users; mirror into public.auth_users for FK targets.
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_schema = 'auth' AND table_name = 'users'
+            ) THEN
+                INSERT INTO auth_users (id)
+                SELECT id FROM auth.users
+                ON CONFLICT (id) DO NOTHING;
+            END IF;
+        END $$;
+        """
+    )
+
+    # Drop rows that still lack a matching auth_users row (stale test data).
+    op.execute(
+        """
+        DELETE FROM follows f
+        WHERE NOT EXISTS (
+            SELECT 1 FROM auth_users u WHERE u.id = f.follower_user_id
+        )
+           OR NOT EXISTS (
+            SELECT 1 FROM auth_users u WHERE u.id = f.following_user_id
+        );
+        """
+    )
+    op.execute(
+        """
+        DELETE FROM group_rsvps r
+        WHERE NOT EXISTS (
+            SELECT 1 FROM auth_users u WHERE u.id = r.user_id
+        );
+        """
+    )
+
     # Add foreign key constraints to follows table (both sides)
     op.create_foreign_key(
         "fk_follows_follower",

@@ -97,7 +97,7 @@ jobs:
           sleep 10
           success=false
           for i in $(seq 1 5); do
-            if timeout 30 sudo docker compose exec -T api alembic upgrade heads; then
+            if timeout 30 sudo docker compose exec -T api alembic upgrade head; then
               success=true
               break
             fi
@@ -107,6 +107,12 @@ jobs:
 
           if [ "$success" = "false" ]; then
             echo "FATAL: alembic migration failed after 5 attempts" >&2
+            exit 1
+          fi
+
+          if ! sudo docker compose exec -T api alembic current 2>&1 | grep -q '(head)'; then
+            echo "FATAL: database is not at alembic head after upgrade" >&2
+            sudo docker compose exec -T api alembic current >&2 || true
             exit 1
           fi
           EOF
