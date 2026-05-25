@@ -10,23 +10,32 @@ export default function VideoModerationPage() {
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  const reload = async () => {
-    setLoading(true); setErr(null);
-    try { setVideos(await listAdminFeedVideos(token, { limit: 50 })); }
-    catch (e: unknown) { setErr(e instanceof Error ? e.message : String(e)); }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => { void reload(); }, [token]);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setLoading(true); setErr(null);
+      try {
+        const res = await listAdminFeedVideos(token, { limit: 50 });
+        if (!cancelled) setVideos(res);
+      } catch (e: unknown) {
+        if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
 
   const moderate = async (videoId: string, moderation_status: "approved" | "rejected") => {
-    setErr(null); setStatus(null);
+    setBusyId(videoId); setErr(null); setStatus(null);
     try {
       await moderateAdminFeedVideo(token, videoId, { moderation_status });
       setStatus(`Video ${videoId.slice(0, 8)} ${moderation_status}.`);
-      await reload();
+      setVideos((prev) => prev.map((v) => v.video_id === videoId ? { ...v, moderation_status } : v));
     } catch (e: unknown) { setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setBusyId(null); }
   };
 
   return (
@@ -65,8 +74,8 @@ export default function VideoModerationPage() {
                       <td>
                         {v.moderation_status === "pending" ? (
                           <div style={{ display: "flex", gap: 6 }}>
-                            <button type="button" className="portal-act" style={{ fontSize: 11, background: "#166534", color: "#fff" }} onClick={() => void moderate(v.video_id, "approved")}>Approve</button>
-                            <button type="button" className="portal-act" style={{ fontSize: 11, background: "#991b1b", color: "#fff" }} onClick={() => void moderate(v.video_id, "rejected")}>Reject</button>
+                            <button type="button" className="portal-act" style={{ fontSize: 11, background: "#166534", color: "#fff" }} disabled={busyId === v.video_id} onClick={() => void moderate(v.video_id, "approved")}>Approve</button>
+                            <button type="button" className="portal-act" style={{ fontSize: 11, background: "#991b1b", color: "#fff" }} disabled={busyId === v.video_id} onClick={() => void moderate(v.video_id, "rejected")}>Reject</button>
                           </div>
                         ) : null}
                       </td>

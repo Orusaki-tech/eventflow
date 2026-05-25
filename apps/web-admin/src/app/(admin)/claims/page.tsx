@@ -12,14 +12,21 @@ export default function AdminClaimsPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  const reload = async () => {
-    setLoading(true); setErr(null);
-    try { setClaims(await listAdminClaims(token, { limit: 50 })); }
-    catch (e: unknown) { setErr(e instanceof Error ? e.message : String(e)); }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => { void reload(); }, [token]);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setLoading(true); setErr(null);
+      try {
+        const res = await listAdminClaims(token, { limit: 50 });
+        if (!cancelled) setClaims(res);
+      } catch (e: unknown) {
+        if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
 
   return (
     <>

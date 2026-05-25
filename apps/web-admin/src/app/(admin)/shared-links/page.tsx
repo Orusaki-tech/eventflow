@@ -121,7 +121,7 @@ export default function AdminSharedLinksPage() {
         url,
         title: editTitle,
         venue: editVenue,
-        start_time: editStart,
+        start_time: inputToUtc(editStart),
         price: editPrice,
         status: newStatus ?? null,
       });
@@ -264,7 +264,7 @@ export default function AdminSharedLinksPage() {
                           type="datetime-local"
                           style={{ fontSize: 11, width: 170 }}
                           value={editStart}
-                          onChange={(e) => setEditStart(inputToUtc(e.target.value))}
+                          onChange={(e) => setEditStart(e.target.value)}
                         />
                       </td>
                       <td>
