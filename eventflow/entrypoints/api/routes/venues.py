@@ -70,7 +70,7 @@ async def update_venue(
     with uow:
         v = uow.venues.get(venue_id=venue_id)
         if v is None:
-            raise HTTPException(status_code=404, detail="Venue not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Venue not found")
         if body.name is not None:
             v.name = body.name.strip()
         if body.address is not None:

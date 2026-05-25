@@ -68,9 +68,9 @@ def _assert_listing_owner(session, community_event_id: UUID, user_id: UUID) -> N
         {"id": str(community_event_id)},
     ).first()
     if row is None:
-        raise HTTPException(status_code=404, detail="Listing not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Listing not found")
     if row[0] != user_id:
-        raise HTTPException(status_code=403, detail="Not your listing")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your listing")
 
 
 def _assert_business_owner(session, business_id: UUID, user_id: UUID) -> None:
@@ -79,9 +79,9 @@ def _assert_business_owner(session, business_id: UUID, user_id: UUID) -> None:
         {"id": str(business_id)},
     ).first()
     if row is None:
-        raise HTTPException(status_code=404, detail="Business not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found")
     if row[0] != user_id:
-        raise HTTPException(status_code=403, detail="Not your business")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your business")
 
 
 def _get_platform_setting(session, key: str) -> dict:
@@ -110,7 +110,7 @@ async def list_ticket_types(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     rows = session.execute(
         text(
             """
@@ -154,7 +154,7 @@ async def bulk_set_ticket_types(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     _assert_listing_owner(session, community_event_id, user_id)
 
     now = datetime.now(timezone.utc)
@@ -253,7 +253,7 @@ async def purchase_tickets(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
 
     # Validate event exists
     event = session.execute(
@@ -263,7 +263,7 @@ async def purchase_tickets(
         {"ce": str(body.community_event_id)},
     ).first()
     if event is None:
-        raise HTTPException(status_code=404, detail="Event not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
     now = datetime.now(timezone.utc)
     total_minor = 0
@@ -282,15 +282,15 @@ async def purchase_tickets(
             {"id": str(item.ticket_type_id), "ce": str(body.community_event_id)},
         ).first()
         if tt is None:
-            raise HTTPException(status_code=404, detail=f"Ticket type {item.ticket_type_id} not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Ticket type {item.ticket_type_id} not found")
         if not tt[7]:
-            raise HTTPException(status_code=400, detail=f"Ticket type {tt[1]} is not active")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Ticket type {tt[1]} is not active")
         if tt[5] and tt[5] > now:
-            raise HTTPException(status_code=400, detail=f"Sale for {tt[1]} has not started")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Sale for {tt[1]} has not started")
         if tt[6] and tt[6] < now:
-            raise HTTPException(status_code=400, detail=f"Sale for {tt[1]} has ended")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Sale for {tt[1]} has ended")
         if tt[3] is not None and tt[4] + item.quantity > tt[3]:
-            raise HTTPException(status_code=400, detail=f"Not enough {tt[1]} tickets available")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Not enough {tt[1]} tickets available")
 
         subtotal = tt[2] * item.quantity
         total_minor += subtotal
@@ -474,7 +474,7 @@ async def get_order(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     row = session.execute(
         text(
             """
@@ -491,7 +491,7 @@ async def get_order(
         {"oid": str(order_id), "uid": user_id},
     ).first()
     if row is None:
-        raise HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
     ticket_rows = session.execute(
         text(
@@ -535,13 +535,13 @@ async def resend_tickets(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     row = session.execute(
         text("SELECT id FROM orders WHERE id = :oid AND user_id = :uid LIMIT 1"),
         {"oid": str(order_id), "uid": user_id},
     ).first()
     if row is None:
-        raise HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
     tickets = session.execute(
         text("SELECT short_code FROM tickets WHERE order_id = :oid AND status = 'active'"),
         {"oid": str(order_id)},
@@ -556,7 +556,7 @@ async def get_ticket(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     row = session.execute(
         text(
             """
@@ -572,7 +572,7 @@ async def get_ticket(
         {"code": short_code},
     ).first()
     if row is None:
-        raise HTTPException(status_code=404, detail="Ticket not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
     return {
         "ticket_id": str(row[0]),
         "short_code": row[1],
@@ -595,7 +595,7 @@ async def check_in_ticket(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     now = datetime.now(timezone.utc)
     ticket = session.execute(
         text(
@@ -609,13 +609,13 @@ async def check_in_ticket(
         {"code": short_code},
     ).first()
     if ticket is None:
-        raise HTTPException(status_code=404, detail="Ticket not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
     if ticket[1] != "active":
-        raise HTTPException(status_code=400, detail=f"Ticket is {ticket[1]}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Ticket is {ticket[1]}")
 
     # Verify the user is the event organizer
     if ticket[2] != user_id:
-        raise HTTPException(status_code=403, detail="Only the event organizer can check in")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the event organizer can check in")
 
     session.execute(
         text("UPDATE tickets SET status = 'used', checked_in_at = :now, checked_in_by = :uid WHERE id = :id"),
@@ -634,13 +634,13 @@ async def business_dashboard(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     biz = session.execute(
         text("SELECT id, name, tap_balance, tap_plan FROM businesses WHERE owner_user_id = :uid LIMIT 1"),
         {"uid": user_id},
     ).first()
     if biz is None:
-        raise HTTPException(status_code=404, detail="No business found for this user")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No business found for this user")
 
     biz_id = biz[0]
 
@@ -718,7 +718,7 @@ async def event_sales_detail(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     _assert_listing_owner(session, community_event_id, user_id)
 
     rows = session.execute(
@@ -757,13 +757,13 @@ async def tap_status(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     biz = session.execute(
         text("SELECT id, name, tap_balance, tap_plan FROM businesses WHERE owner_user_id = :uid LIMIT 1"),
         {"uid": user_id},
     ).first()
     if biz is None:
-        raise HTTPException(status_code=404, detail="Business not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found")
 
     pricing = _get_platform_setting(session, "tap_pricing")
     return TapPackResponse(
@@ -781,18 +781,18 @@ async def buy_tap_pack(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     biz = session.execute(
         text("SELECT id FROM businesses WHERE owner_user_id = :uid LIMIT 1"),
         {"uid": user_id},
     ).first()
     if biz is None:
-        raise HTTPException(status_code=404, detail="Business not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found")
 
     pricing = _get_platform_setting(session, "tap_pricing")
     plan_info = pricing.get(body.plan)
     if not plan_info:
-        raise HTTPException(status_code=400, detail=f"Unknown plan: {body.plan}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown plan: {body.plan}")
 
     taps = plan_info.get("taps")
 
@@ -824,13 +824,13 @@ async def publish_feed_video(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     biz = session.execute(
         text("SELECT id FROM businesses WHERE owner_user_id = :uid LIMIT 1"),
         {"uid": user_id},
     ).first()
     if biz is None:
-        raise HTTPException(status_code=404, detail="Business not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found")
 
     if body.community_event_id:
         attached = session.execute(
@@ -840,7 +840,7 @@ async def publish_feed_video(
             {"ce": str(body.community_event_id), "bid": str(biz[0])},
         ).first()
         if attached is None:
-            raise HTTPException(status_code=403, detail="Event not attached to your business")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Event not attached to your business")
 
     vid = uuid4()
     now = datetime.now(timezone.utc)
@@ -962,7 +962,7 @@ async def log_video_watch(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     now = datetime.now(timezone.utc)
 
     # Log watch
@@ -1023,7 +1023,7 @@ async def feed_watch_status(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
@@ -1074,13 +1074,13 @@ async def create_product(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     biz = session.execute(
         text("SELECT id FROM businesses WHERE owner_user_id = :uid LIMIT 1"),
         {"uid": user_id},
     ).first()
     if biz is None:
-        raise HTTPException(status_code=404, detail="Business not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found")
 
     pid = uuid4()
     now = datetime.now(timezone.utc)
@@ -1150,7 +1150,7 @@ async def link_product_to_event(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
 
     # Get the event owner's business
     event_owner = session.execute(
@@ -1158,7 +1158,7 @@ async def link_product_to_event(
         {"ce": str(community_event_id)},
     ).first()
     if event_owner is None:
-        raise HTTPException(status_code=404, detail="Event not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
     owner_biz = session.execute(
         text("SELECT id FROM businesses WHERE owner_user_id = :uid LIMIT 1"),
@@ -1171,14 +1171,14 @@ async def link_product_to_event(
         {"pid": str(body.product_id)},
     ).first()
     if product is None:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
 
     product_biz = session.execute(
         text("SELECT owner_user_id FROM businesses WHERE id = :bid LIMIT 1"),
         {"bid": str(product[1])},
     ).first()
     if product_biz is None or product_biz[0] != user_id:
-        raise HTTPException(status_code=403, detail="Not your product")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your product")
 
     # Auto-approve if the product owner is also the event owner
     status_val = "approved" if (owner_biz and product[1] == owner_biz[0]) else "pending"
@@ -1230,7 +1230,7 @@ async def get_event_products(
 ):
     """Visible only to users who have bought a ticket to this event."""
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
 
     # Verify user bought a ticket
     has_ticket = session.execute(
@@ -1240,7 +1240,7 @@ async def get_event_products(
         {"ce": str(community_event_id), "uid": user_id},
     ).first()
     if has_ticket is None:
-        raise HTTPException(status_code=403, detail="Buy a ticket first to see affiliate products")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Buy a ticket first to see affiliate products")
 
     rows = session.execute(
         text(
@@ -1331,13 +1331,13 @@ async def approve_affiliate_request(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     biz = session.execute(
         text("SELECT id FROM businesses WHERE owner_user_id = :uid LIMIT 1"),
         {"uid": user_id},
     ).first()
     if biz is None:
-        raise HTTPException(status_code=404, detail="Business not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found")
     now = datetime.now(timezone.utc)
     session.execute(
         text(
@@ -1372,13 +1372,13 @@ async def get_payout_settings(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     biz = session.execute(
         text("SELECT id FROM businesses WHERE owner_user_id = :uid LIMIT 1"),
         {"uid": user_id},
     ).first()
     if biz is None:
-        raise HTTPException(status_code=404, detail="Business not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found")
     row = session.execute(
         text("SELECT * FROM business_payout_settings WHERE business_id = :bid LIMIT 1"),
         {"bid": str(biz[0])},
@@ -1402,13 +1402,13 @@ async def update_payout_settings(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     biz = session.execute(
         text("SELECT id FROM businesses WHERE owner_user_id = :uid LIMIT 1"),
         {"uid": user_id},
     ).first()
     if biz is None:
-        raise HTTPException(status_code=404, detail="Business not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found")
     now = datetime.now(timezone.utc)
     session.execute(
         text(
@@ -1508,13 +1508,13 @@ async def request_payout(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     biz = session.execute(
         text("SELECT id, name FROM businesses WHERE owner_user_id = :uid LIMIT 1"),
         {"uid": user_id},
     ).first()
     if biz is None:
-        raise HTTPException(status_code=404, detail="Business not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found")
 
     # Available balance (lock settings to serialize concurrent payout requests)
     settings = session.execute(
@@ -1557,7 +1557,7 @@ async def request_payout(
 
     min_payout = settings.minimum_payout_minor if settings else 50000
     if net < min_payout:
-        raise HTTPException(status_code=400, detail=f"Minimum payout is KES {min_payout/100:.0f}. Available: KES {net/100:.0f}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Minimum payout is KES {min_payout/100:.0f}. Available: KES {net/100:.0f}")
 
     now = datetime.now(timezone.utc)
     pid = uuid4()
@@ -1597,7 +1597,7 @@ async def submit_claim(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
 
     # Verify order belongs to user
     order = session.execute(
@@ -1607,7 +1607,7 @@ async def submit_claim(
         {"oid": str(body.order_id), "uid": user_id},
     ).first()
     if order is None:
-        raise HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
     # Check existing open claim
     existing = session.execute(
@@ -1615,7 +1615,7 @@ async def submit_claim(
         {"oid": str(body.order_id)},
     ).first()
     if existing:
-        raise HTTPException(status_code=400, detail="You already have an open claim for this order")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You already have an open claim for this order")
 
     cid = uuid4()
     now = datetime.now(timezone.utc)
@@ -1688,14 +1688,14 @@ async def redeem_points(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     row = session.execute(
         text("SELECT balance FROM user_points WHERE user_id = :uid LIMIT 1 FOR UPDATE"),
         {"uid": user_id},
     ).first()
     current_balance = row[0] if row else 0
     if current_balance < body.points:
-        raise HTTPException(status_code=400, detail=f"Not enough points. You have {current_balance}.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Not enough points. You have {current_balance}.")
     now = datetime.now(timezone.utc)
     discount_minor = body.points * 500
     session.execute(
@@ -1725,7 +1725,7 @@ async def create_subscription(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     now = datetime.now(timezone.utc)
     y = now.year + (now.month // 12)
     m = (now.month % 12) + 1
@@ -1774,7 +1774,7 @@ async def cancel_subscription(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     session.execute(
         text("UPDATE user_subscriptions SET status = 'cancelled' WHERE user_id = :uid"),
         {"uid": user_id},
@@ -1794,7 +1794,7 @@ async def admin_list_orders(
     offset: int = Query(default=0, ge=0),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     rows = session.execute(
         text(
             """
@@ -1831,7 +1831,7 @@ async def admin_list_claims(
     status_filter: str | None = Query(default=None, alias="status"),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     where = ""
     params = {"lim": limit, "off": offset}
     if status_filter:
@@ -1872,16 +1872,16 @@ async def admin_resolve_claim(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     now = datetime.now(timezone.utc)
     claim = session.execute(
         text("SELECT id, order_id, status FROM claims WHERE id = :id LIMIT 1"),
         {"id": str(claim_id)},
     ).first()
     if claim is None:
-        raise HTTPException(status_code=404, detail="Claim not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Claim not found")
     if claim[2] != "open":
-        raise HTTPException(status_code=400, detail="Claim already resolved")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Claim already resolved")
 
     new_status = body.claim_type
 
@@ -1919,7 +1919,7 @@ async def admin_list_payouts(
     offset: int = Query(default=0, ge=0),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     rows = session.execute(
         text(
             """
@@ -1954,7 +1954,7 @@ async def admin_process_payout(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     now = datetime.now(timezone.utc)
     session.execute(
         text(
@@ -1972,7 +1972,7 @@ async def admin_get_platform_settings(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     rows = session.execute(
         text("SELECT key, value, updated_at FROM platform_settings ORDER BY key ASC")
     ).fetchall()
@@ -1986,7 +1986,7 @@ async def admin_update_platform_setting(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     now = datetime.now(timezone.utc)
     session.execute(
         text(
@@ -2007,7 +2007,7 @@ async def admin_list_videos(
     offset: int = Query(default=0, ge=0),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     rows = session.execute(
         text(
             """
@@ -2040,7 +2040,7 @@ async def admin_moderate_video(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     session.execute(
         text("UPDATE feed_videos SET moderation_status = :st WHERE id = :id"),
         {"st": body.moderation_status, "id": str(video_id)},

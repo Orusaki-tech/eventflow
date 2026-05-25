@@ -85,9 +85,10 @@ jobs:
               # Start the stack
               sudo IMAGE_TAG=${{ env.IMAGE_TAG }} docker compose up -d --remove-orphans
 
-              # Run migrations
+              # Run migrations (with timeout to avoid hanging on DB issues)
+              sleep 10
               for i in \$(seq 1 5); do
-                sudo docker compose exec -T api alembic upgrade head && break
+                timeout 30 sudo docker compose exec -T api alembic upgrade head && break
                 echo 'alembic attempt '\$i' failed, retrying…'
                 sleep 5
               done

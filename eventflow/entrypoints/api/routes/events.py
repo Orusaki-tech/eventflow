@@ -61,9 +61,9 @@ async def confirm_event(
         )
         return EventConfirmedResponse(event_id=UUID(event_id))
     except DraftNotFound as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except PermissionDenied as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
 
 @router.patch("/events/{event_id}/basics", status_code=status.HTTP_200_OK)
@@ -76,21 +76,21 @@ async def update_event_basics(
     with uow:
         evt = uow.events.get(event_id)
         if evt is None:
-            raise HTTPException(status_code=404, detail="Event not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
         if evt.user_id != user_id:
-            raise HTTPException(status_code=403, detail="Not your event")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your event")
         if evt.cancelled_at is not None:
-            raise HTTPException(status_code=400, detail="Cannot edit a cancelled event")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot edit a cancelled event")
 
         if body.title is not None:
             t = body.title.strip()
             if not t:
-                raise HTTPException(status_code=400, detail="title cannot be empty")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="title cannot be empty")
             evt.title = t
         if body.venue is not None:
             v = body.venue.strip()
             if not v:
-                raise HTTPException(status_code=400, detail="venue cannot be empty")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="venue cannot be empty")
             evt.venue = v
             evt.raw_venue_text = v
         if body.start_time is not None:
@@ -120,9 +120,9 @@ async def update_event_price(
     with uow:
         evt = uow.events.get(event_id)
         if evt is None:
-            raise HTTPException(status_code=404, detail="Event not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
         if evt.user_id != user_id:
-            raise HTTPException(status_code=403, detail="Not your event")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your event")
         evt.price = normalized
         uow.commit()
     return {"ok": True, "price": normalized}
@@ -136,13 +136,13 @@ async def update_event_visibility(
     uow=Depends(get_uow),
 ):
     if body.visibility not in {"private", "public"}:
-        raise HTTPException(status_code=400, detail="visibility must be 'private' or 'public'")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="visibility must be 'private' or 'public'")
     with uow:
         evt = uow.events.get(event_id)
         if evt is None:
-            raise HTTPException(status_code=404, detail="Event not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
         if evt.user_id != user_id:
-            raise HTTPException(status_code=403, detail="Not your event")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your event")
         evt.visibility = body.visibility
         uow.commit()
     return {"ok": True, "visibility": body.visibility}
@@ -158,7 +158,7 @@ async def update_event_description(
 ):
     audience = body.audience.strip()
     if audience not in {"public", "close_friends"}:
-        raise HTTPException(status_code=400, detail="audience must be public|close_friends")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="audience must be public|close_friends")
     desc = (body.description or "").strip()
     if desc == "":
         desc = None
@@ -166,7 +166,7 @@ async def update_event_description(
     with uow:
         evt = uow.events.get(event_id)
         if evt is None:
-            raise HTTPException(status_code=404, detail="Event not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
         # Allow updates by:
         # - owner
@@ -193,7 +193,7 @@ async def update_event_description(
                 allowed = r is not None
 
         if not allowed:
-            raise HTTPException(status_code=403, detail="Not allowed")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed")
 
         if audience == "public":
             setattr(evt, "description_public", desc)
@@ -220,19 +220,19 @@ async def resolve_venue(
     with uow:
         evt = uow.events.get(event_id)
         if evt is None:
-            raise HTTPException(status_code=404, detail="Event not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
         if evt.user_id != user_id:
-            raise HTTPException(status_code=403, detail="Not your event")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your event")
 
         candidates = places.text_search(query=body.query, near_lat=body.near_lat, near_lng=body.near_lng)
         if not candidates:
-            raise HTTPException(status_code=404, detail="No matching venue found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No matching venue found")
         best = candidates[0]
         try:
             validate_wgs84_coordinates(best.lat, best.lng)
         except ValueError as exc:
             raise HTTPException(
-                status_code=502,
+                status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Venue search returned unusable coordinates; try manual pin or another query. ({exc})",
             ) from exc
 
@@ -278,7 +278,7 @@ async def attach_manual_venue(
     """Create a venue from explicit coordinates (no Places match required) and attach it to the event."""
     name = body.name.strip()
     if not name:
-        raise HTTPException(status_code=400, detail="Venue name is required")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Venue name is required")
 
     now = datetime.now(timezone.utc)
     v = Venue(
@@ -296,9 +296,9 @@ async def attach_manual_venue(
     with uow:
         evt = uow.events.get(event_id)
         if evt is None:
-            raise HTTPException(status_code=404, detail="Event not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
         if evt.user_id != user_id:
-            raise HTTPException(status_code=403, detail="Not your event")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your event")
 
         saved = uow.venues.upsert_by_place_id(venue=v) if v.place_id else uow.venues.add(v)
         evt.venue_id = saved.id
@@ -333,23 +333,23 @@ async def event_eta(
     with uow:
         evt = uow.events.get(event_id)
         if evt is None:
-            raise HTTPException(status_code=404, detail="Event not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
         # Allow ETA for events visible to the user (owner or shared/public) later; for now owner-only.
         if evt.user_id != user_id:
-            raise HTTPException(status_code=403, detail="Not your event")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your event")
 
         if not getattr(evt, "venue_id", None):
-            raise HTTPException(status_code=409, detail="Venue not resolved for this event")
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Venue not resolved for this event")
         venue = uow.venues.get(venue_id=evt.venue_id)
         if venue is None:
-            raise HTTPException(status_code=409, detail="Venue not resolved for this event")
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Venue not resolved for this event")
 
         try:
             validate_wgs84_coordinates(venue.lat, venue.lng)
         except ValueError as exc:
             raise HTTPException(
-                status_code=409,
+                status_code=status.HTTP_409_CONFLICT,
                 detail=f"Stored venue has invalid coordinates; re-save the venue pin. ({exc})",
             ) from exc
 
@@ -381,9 +381,9 @@ async def cancel_event(
         )
         return {"status": "cancelled"}
     except EventNotFound as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except PermissionDenied as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
 
 @router.get("/events/upcoming", status_code=status.HTTP_200_OK)
@@ -430,9 +430,9 @@ async def download_ics(
     with uow:
         evt = uow.events.get(event_id)
         if evt is None:
-            raise HTTPException(status_code=404, detail="Event not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
         if evt.user_id != user_id:
-            raise HTTPException(status_code=403, detail="Not your event")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your event")
 
         ics = calendar_client.build_ics(event=evt)
         uow.commit()
@@ -460,11 +460,11 @@ async def schedule_reminder_alert(
         )
         return {"status": "scheduled"}
     except PermissionDenied as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except PastEventError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except InvariantViolation as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/events/{event_id}/alerts/snooze", status_code=status.HTTP_202_ACCEPTED)
@@ -479,14 +479,14 @@ async def snooze_leave_alert(
     with uow:
         evt = uow.events.get(event_id)
         if evt is None:
-            raise HTTPException(status_code=404, detail="Event not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
         if evt.user_id != user_id:
-            raise HTTPException(status_code=403, detail="Not your event")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your event")
         if evt.cancelled_at is not None:
-            raise HTTPException(status_code=409, detail="Event is cancelled")
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Event is cancelled")
         now = datetime.now(timezone.utc)
         if evt.start_time <= now:
-            raise HTTPException(status_code=409, detail="Event already started or ended")
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Event already started or ended")
         run_at = now + timedelta(minutes=int(body.minutes))
         scheduler.schedule_push_due(
             job_key=f"user_snooze:{event_id}",
@@ -508,7 +508,7 @@ async def get_device_calendar_link(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     row = session.execute(
         text(
             """
@@ -521,7 +521,7 @@ async def get_device_calendar_link(
         {"uid": str(user_id), "eid": str(event_id)},
     ).first()
     if row is None:
-        raise HTTPException(status_code=404, detail="No device calendar mapping")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No device calendar mapping")
     return {"external_event_id": row[0], "calendar_id": row[1]}
 
 
@@ -534,13 +534,13 @@ async def put_device_calendar_link(
     uow=Depends(get_uow),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     with uow:
         evt = uow.events.get(event_id)
         if evt is None:
-            raise HTTPException(status_code=404, detail="Event not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
         if evt.user_id != user_id:
-            raise HTTPException(status_code=403, detail="Not your event")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your event")
         uow.commit()
     now = datetime.now(timezone.utc)
     session.execute(
@@ -573,7 +573,7 @@ async def delete_device_calendar_link(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     session.execute(
         text(
             """

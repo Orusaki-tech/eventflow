@@ -143,11 +143,13 @@ export function useShareHandoff(navReady: boolean) {
       const fromQuery = parseImportUrl(url);
       if (fromQuery) await routeInbound(fromQuery);
     });
-    void Linking.getInitialURL().then(async (url) => {
-      const fromQuery = parseImportUrl(url);
-      if (fromQuery) await routeInbound(fromQuery);
-      await scan();
-    });
+    void Linking.getInitialURL()
+      .then(async (url) => {
+        const fromQuery = parseImportUrl(url);
+        if (fromQuery) await routeInbound(fromQuery);
+        await scan();
+      })
+      .catch((e) => console.error("Failed to get initial URL", e));
     return () => sub.remove();
   }, [routeInbound, scan]);
 }

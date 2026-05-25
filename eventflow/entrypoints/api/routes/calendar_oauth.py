@@ -25,9 +25,9 @@ async def google_calendar_oauth_start(
 ):
     settings = get_settings()
     if not settings.google_calendar_credentials_json:
-        raise HTTPException(status_code=500, detail="GOOGLE_CALENDAR_CREDENTIALS_JSON not configured")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="GOOGLE_CALENDAR_CREDENTIALS_JSON not configured")
     if not settings.google_oauth_redirect_uri:
-        raise HTTPException(status_code=500, detail="GOOGLE_OAUTH_REDIRECT_URI not configured")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="GOOGLE_OAUTH_REDIRECT_URI not configured")
 
     client_config = __import__("json").loads(settings.google_calendar_credentials_json)
     flow = Flow.from_client_config(client_config, scopes=_SCOPES)
@@ -63,9 +63,9 @@ async def google_calendar_oauth_callback(
 ):
     settings = get_settings()
     if not settings.google_calendar_credentials_json:
-        raise HTTPException(status_code=500, detail="GOOGLE_CALENDAR_CREDENTIALS_JSON not configured")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="GOOGLE_CALENDAR_CREDENTIALS_JSON not configured")
     if not settings.google_oauth_redirect_uri:
-        raise HTTPException(status_code=500, detail="GOOGLE_OAUTH_REDIRECT_URI not configured")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="GOOGLE_OAUTH_REDIRECT_URI not configured")
 
     client_config = __import__("json").loads(settings.google_calendar_credentials_json)
     flow = Flow.from_client_config(client_config, scopes=_SCOPES, state=state)
@@ -74,7 +74,7 @@ async def google_calendar_oauth_callback(
     with uow:
         expected = uow.oauth_states.get(user_id=user_id, provider=_PROVIDER)
         if expected is None or expected.state != state:
-            raise HTTPException(status_code=400, detail="Invalid OAuth state")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OAuth state")
 
         flow.fetch_token(code=code)
         creds = flow.credentials

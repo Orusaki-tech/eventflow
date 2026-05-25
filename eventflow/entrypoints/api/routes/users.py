@@ -59,7 +59,7 @@ async def patch_user_preferences(
 
     budget = patch["monthly_budget_minor_units"]
     if budget is not None and budget < 0:
-        raise HTTPException(status_code=400, detail="monthly_budget_minor_units cannot be negative")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="monthly_budget_minor_units cannot be negative")
     now = datetime.now(timezone.utc)
     session.execute(
         text(
@@ -114,7 +114,7 @@ async def upsert_location(
     uow=Depends(get_uow),
 ):
     if label not in {"home", "work"}:
-        raise HTTPException(status_code=400, detail="label must be 'home' or 'work'")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="label must be 'home' or 'work'")
 
     loc = UserLocation(user_id=user_id, label=label, address=body.address, lat=body.lat, lng=body.lng)
     with uow:
@@ -134,12 +134,12 @@ async def get_location(
     uow=Depends(get_uow),
 ):
     if label not in {"home", "work"}:
-        raise HTTPException(status_code=400, detail="label must be 'home' or 'work'")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="label must be 'home' or 'work'")
 
     with uow:
         loc = uow.user_locations.get(user_id=user_id, label=label)
         if loc is None:
-            raise HTTPException(status_code=404, detail="Location not set")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not set")
         return UserLocationResponse(label=loc.label, address=loc.address, lat=loc.lat, lng=loc.lng)
 
 
@@ -154,7 +154,7 @@ async def register_push_token(
     uow=Depends(get_uow),
 ):
     if not body.expo_push_token or not body.expo_push_token.startswith("ExponentPushToken["):
-        raise HTTPException(status_code=400, detail="Invalid Expo push token")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Expo push token")
 
     now = datetime.now(timezone.utc)
     tok = DevicePushToken(
@@ -192,7 +192,7 @@ async def unregister_push_token(
             uow.commit()
             return None
         if tok.user_id != user_id:
-            raise HTTPException(status_code=403, detail="Not your push token")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your push token")
         uow.device_push_tokens.disable(token_id=token_id, disabled_at=now)
         uow.commit()
     return None

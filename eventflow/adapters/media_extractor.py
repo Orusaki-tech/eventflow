@@ -13,6 +13,7 @@ from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, build_opener, ProxyHandler, HTTPSHandler
 
 import certifi
+import logging
 
 try:
     # Optional at import time (e.g. some test environments).
@@ -49,6 +50,8 @@ class ExtractedMedia:
     # (e.g. Referer/User-Agent) to fetch thumbnails successfully.
     thumbnail_request_headers: dict[str, str] | None
 
+
+_log = logging.getLogger(__name__)
 
 _SUPPORTED_DOMAINS: tuple[str, ...] = (
     # YouTube
@@ -149,17 +152,12 @@ def instagram_post_shortcode(url: str) -> str | None:
 
 
 def _decode_instagram_embed_url_fragment(fragment: str) -> str:
-    """Undo JS-style escaping used in Instagram embed HTML (e.g. \\\\/ → /)."""
+    """Undo JS-style escaping used in Instagram embed HTML."""
     out = fragment
-    changed = True
-    while changed:
-        changed = False
-        if "\\\\/" in out:
-            out = out.replace("\\\\/", "/")
-            changed = True
-        elif "\\/" in out:
-            out = out.replace("\\/", "/")
-            changed = True
+    out = out.replace("\\\\/", "/")
+    out = out.replace("\\/", "/")
+    out = out.replace("\\u0026", "&")
+    out = out.replace("\\u003d", "=")
     return out
 
 
@@ -169,39 +167,47 @@ def instagram_carousel_image_urls_from_embed_html(html: str) -> list[str]:
 
     Returns an empty list when the post is a single image (no sidecar marker) or parsing fails.
     """
-    marker = "edge_sidecar_to_children"
-    i = html.find(marker)
-    if i == -1:
+    try:
+        marker = "edge_sidecar_to_children"
+        i = html.find(marker)
+        if i == -1:
+            return []
+
+        segment = html[i : i + 2_000_000]  # Increased from 800KB; Instagram embed payloads can exceed 1MB
+        needle = 'display_url\\":\\"'
+        found: list[str] = []
+        pos = 0
+        for _ in range(96):
+            j = segment.find(needle, pos)
+            if j == -1:
+                break
+            start = j + len(needle)
+            end = segment.find('\\"', start)
+            if end == -1:
+                break
+            raw = segment[start:end]
+            url = _decode_instagram_embed_url_fragment(raw)
+            # Instagram CDN URLs change shape; accept any https fbcdn URL.
+            if url.startswith("https://") and "fbcdn.net" in url.lower():
+                found.append(url)
+            pos = end + 1
+
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for u in found:
+            if u not in seen:
+                seen.add(u)
+                deduped.append(u)
+            if len(deduped) >= INSTAGRAM_CAROUSEL_MAX_SLIDES:
+                break
+
+        if not deduped and "display_url" in html:
+            _log.warning("Instagram carousel HTML contained display_url but string-based parsing returned no results")
+
+        return deduped
+    except Exception:
+        _log.warning("Failed to parse Instagram carousel from embed HTML", exc_info=True)
         return []
-
-    segment = html[i : i + 800_000]
-    needle = 'display_url\\":\\"'
-    found: list[str] = []
-    pos = 0
-    for _ in range(96):
-        j = segment.find(needle, pos)
-        if j == -1:
-            break
-        start = j + len(needle)
-        end = segment.find('\\"', start)
-        if end == -1:
-            break
-        raw = segment[start:end]
-        url = _decode_instagram_embed_url_fragment(raw)
-        # Instagram CDN URLs change shape; accept any https fbcdn URL.
-        if url.startswith("https://") and "fbcdn.net" in url.lower():
-            found.append(url)
-        pos = end + 1
-
-    deduped: list[str] = []
-    seen: set[str] = set()
-    for u in found:
-        if u not in seen:
-            seen.add(u)
-            deduped.append(u)
-        if len(deduped) >= INSTAGRAM_CAROUSEL_MAX_SLIDES:
-            break
-    return deduped
 
 
 def fetch_instagram_post_embed_html(*, page_url: str, timeout_seconds: float = 12.0, max_bytes: int = 2_000_000) -> str:

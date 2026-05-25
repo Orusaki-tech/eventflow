@@ -15,7 +15,7 @@ from starlette.responses import Response
 from sqlalchemy import text
 
 from eventflow.adapters import media_extractor
-from eventflow.adapters.share_preview_image import try_instagram_embed_slide_bytes
+from eventflow.adapters.share_preview_image import _extract_og_image_url, try_instagram_embed_slide_bytes
 from eventflow.adapters.image_token_store import ImageTokenStore
 from eventflow.adapters.poster_store import PosterStore
 from eventflow.domain.exceptions import InvariantViolation
@@ -26,29 +26,6 @@ from eventflow.service_layer.handlers import _is_private_address
 
 router = APIRouter(tags=["Media"])
 _log_media = logging.getLogger(__name__)
-
-
-def _extract_og_image_url(html: str) -> str | None:
-    """
-    Best-effort: extract OpenGraph/Twitter image URL from HTML.
-    Works for providers that expose an unauthenticated `og:image` (often Instagram posts).
-    """
-    # Common meta patterns:
-    # <meta property="og:image" content="...">
-    # <meta name="twitter:image" content="...">
-    patterns = [
-        r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']',
-        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']',
-        r'<meta[^>]+name=["\']twitter:image["\'][^>]+content=["\']([^"\']+)["\']',
-        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']twitter:image["\']',
-    ]
-    for pat in patterns:
-        m = re.search(pat, html, flags=re.IGNORECASE)
-        if m:
-            url = (m.group(1) or "").strip()
-            if url.startswith("http://") or url.startswith("https://"):
-                return url
-    return None
 
 
 def _fetch_html_text(*, url: str, timeout_seconds: float = 5.0, max_bytes: int = 1_000_000) -> str:
@@ -118,6 +95,7 @@ def _fetch_json(*, url: str, timeout_seconds: float = 5.0, max_bytes: int = 1_00
     except URLError as e:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"URL fetch failed ({e})")
     except Exception:
+        _log_media.exception("_fetch_json failed for URL")
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="URL fetch failed")
 
 
@@ -205,6 +183,7 @@ def _resolve_preview_image_bytes(shared_url: str) -> tuple[bytes, str]:
             raise InvariantViolation("No thumbnail found")
         return _fetch_image_bytes(url=meta.thumbnail_url, extra_headers=meta.thumbnail_request_headers)
     except Exception:
+        _log_media.warning("yt-dlp extraction failed, falling back to OG/legacy for url", exc_info=True)
         host = (urlparse(shared_url).hostname or "").lower()
         if host and (host == "instagram.com" or host.endswith(".instagram.com")):
             legacy = media_extractor.instagram_legacy_media_fetch_params(shared_url)
@@ -248,10 +227,11 @@ def resolve_image(
         try:
             host = urlparse(body.url).hostname or ""
         except Exception:
-            pass
+            _log_media.exception("Failed to parse hostname from URL for diagnostic logging")
         _log_media.warning("resolve_image_bad_request host=%s detail=%s", host, e)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception:
+        _log_media.exception("resolve_image unexpected failure for URL")
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Image resolve failed")
 
 

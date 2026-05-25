@@ -65,7 +65,12 @@ export function RootNavigator() {
   const [navReady, setNavReady] = useState(false);
 
   useEffect(() => {
-    void AsyncStorage.getItem(STORAGE_ONBOARDING_DONE).then((v) => setOnboardingDone(v === "1"));
+    void AsyncStorage.getItem(STORAGE_ONBOARDING_DONE)
+      .then((v) => setOnboardingDone(v === "1"))
+      .catch((e) => {
+        console.error("Failed to read onboarding storage", e);
+        setOnboardingDone(false);
+      });
   }, []);
 
   const markOnboardingStored = useCallback(() => setOnboardingDone(true), []);

@@ -41,9 +41,9 @@ def _assert_community_listing_owner(session, community_event_id: UUID, user_id: 
         {"id": str(community_event_id)},
     ).first()
     if row is None:
-        raise HTTPException(status_code=404, detail="Listing not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Listing not found")
     if row[0] != user_id:
-        raise HTTPException(status_code=403, detail="Not your listing")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your listing")
 
 
 def _assert_business_owner(session, business_id: UUID, user_id: UUID) -> None:
@@ -52,9 +52,9 @@ def _assert_business_owner(session, business_id: UUID, user_id: UUID) -> None:
         {"id": str(business_id)},
     ).first()
     if row is None:
-        raise HTTPException(status_code=404, detail="Business not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found")
     if row[0] != user_id:
-        raise HTTPException(status_code=403, detail="Not your business")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your business")
 
 
 @router.get("/feed/home", status_code=status.HTTP_200_OK)
@@ -70,7 +70,7 @@ async def feed_home(
 @router.get("/businesses", status_code=status.HTTP_200_OK, response_model=list[BusinessResponse])
 async def list_my_businesses(user_id=Depends(get_current_user_id), session=Depends(get_session)):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     rows = session.execute(
         text(
             """
@@ -95,7 +95,7 @@ async def create_business(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     bid = uuid4()
     now = datetime.now(timezone.utc)
     w = body.whatsapp_e164.strip() if body.whatsapp_e164 else None
@@ -120,7 +120,7 @@ async def patch_business(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     _assert_business_owner(session, business_id, user_id)
     sets: list[str] = []
     params: dict = {"id": str(business_id)}
@@ -140,7 +140,7 @@ async def patch_business(
     ):
         if val is not None:
             if col not in _allowed_columns:
-                raise HTTPException(status_code=400, detail=f"Unknown column: {col}")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown column: {col}")
             sets.append(f"{col} = :{col}")
             params[col] = val.strip() if isinstance(val, str) else val
     if not sets:
@@ -149,7 +149,7 @@ async def patch_business(
             {"id": str(business_id)},
         ).first()
         if row is None:
-            raise HTTPException(status_code=404, detail="Business not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found")
         return BusinessResponse(business_id=row[0], name=row[1], whatsapp_e164=row[2], verified=bool(row[3]))
     session.execute(text(f"UPDATE businesses SET {', '.join(sets)} WHERE id = :id"), params)
     session.commit()
@@ -158,7 +158,7 @@ async def patch_business(
         {"id": str(business_id)},
     ).first()
     if row is None:
-        raise HTTPException(status_code=404, detail="Business not found after update")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found after update")
     return BusinessResponse(business_id=row[0], name=row[1], whatsapp_e164=row[2], verified=bool(row[3]))
 
 
@@ -174,7 +174,7 @@ async def admin_patch_business_verified(
     _: None = Depends(require_admin_api_token),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     return set_business_verified(session, business_id=business_id, verified=body.verified)
 
 
@@ -216,7 +216,7 @@ async def list_followed_businesses(
 @router.get("/businesses/{business_id}", status_code=status.HTTP_200_OK, response_model=BusinessResponse)
 async def get_business(business_id: UUID, user_id=Depends(get_current_user_id), session=Depends(get_session)):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     row = session.execute(
         text(
             """
@@ -227,7 +227,7 @@ async def get_business(business_id: UUID, user_id=Depends(get_current_user_id), 
         {"id": str(business_id)},
     ).first()
     if row is None:
-        raise HTTPException(status_code=404, detail="Business not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found")
     whatsapp = row[2] if row[4] == user_id else None
     return BusinessResponse(
         business_id=row[0],
@@ -247,13 +247,13 @@ async def follow_business(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     row = session.execute(
         text("SELECT 1 FROM businesses WHERE id = :id LIMIT 1"),
         {"id": str(business_id)},
     ).first()
     if row is None:
-        raise HTTPException(status_code=404, detail="Business not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found")
     now = datetime.now(timezone.utc)
     session.execute(
         text(
@@ -279,7 +279,7 @@ async def unfollow_business(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     session.execute(
         text(
             """
@@ -303,7 +303,7 @@ async def get_business_follow(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     row = session.execute(
         text(
             "SELECT 1 FROM business_follows WHERE follower_user_id = :uid AND business_id = :biz LIMIT 1"
@@ -324,7 +324,7 @@ async def put_listing_business_attachment(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     _assert_community_listing_owner(session, community_event_id, user_id)
     _assert_business_owner(session, body.business_id, user_id)
     now = datetime.now(timezone.utc)
@@ -354,7 +354,7 @@ async def delete_listing_business_attachment(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     _assert_community_listing_owner(session, community_event_id, user_id)
     session.execute(
         text("DELETE FROM business_listing_attachments WHERE community_event_id = :ce"),
@@ -375,7 +375,7 @@ async def put_listing_share_alias(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     _assert_community_listing_owner(session, community_event_id, user_id)
     norm = normalize_shared_url(body.url.strip())
     row_ce = session.execute(
@@ -388,7 +388,7 @@ async def put_listing_share_alias(
         {"id": str(community_event_id)},
     ).first()
     if row_ce is None:
-        raise HTTPException(status_code=404, detail="Listing not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Listing not found")
     title, venue, start_time = row_ce[0], row_ce[1], row_ce[2]
     now = datetime.now(timezone.utc)
     session.execute(
@@ -430,7 +430,7 @@ async def delete_listing_share_alias(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     _assert_community_listing_owner(session, community_event_id, user_id)
     norm = normalize_shared_url(url.strip())
     result = session.execute(
@@ -444,7 +444,7 @@ async def delete_listing_share_alias(
     )
     session.commit()
     if result.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Share alias not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Share alias not found")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -455,11 +455,11 @@ async def listing_analytics(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     
     # Validate: at least one target (community_event_id or business_id) must be set
     if not body.community_event_id and not body.business_id:
-        raise HTTPException(status_code=400, detail="Either community_event_id or business_id is required")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Either community_event_id or business_id is required")
     
     aid = uuid4()
     now = datetime.now(timezone.utc)
@@ -513,9 +513,9 @@ async def follow_user(
     session=Depends(get_session),
 ):
     if target_user_id == user_id:
-        raise HTTPException(status_code=400, detail="Cannot follow yourself")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot follow yourself")
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     now = datetime.now(timezone.utc)
     session.execute(
         text(
@@ -534,7 +534,7 @@ async def follow_user(
 @router.delete("/follows/{target_user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def unfollow_user(target_user_id: UUID, user_id=Depends(get_current_user_id), session=Depends(get_session)):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     session.execute(
         text(
             """
@@ -559,7 +559,7 @@ async def listing_carousel(
     session=Depends(get_session),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     row = session.execute(
         text(
             """
@@ -569,14 +569,14 @@ async def listing_carousel(
         {"id": str(community_event_id)},
     ).first()
     if row is None:
-        raise HTTPException(status_code=404, detail="Listing not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Listing not found")
     
     visibility = row[3]
     owner_user_id = row[4]
     
     # Check authorization: allow if public OR user is owner
     if visibility != "public" and owner_user_id != user_id:
-        raise HTTPException(status_code=403, detail="Not authorized to view this listing")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this listing")
     
     poster_uri = row[2]
     img = str(poster_uri).strip() if poster_uri else None
@@ -612,7 +612,7 @@ async def register_event_video(
 ):
     """Register a video URI for moderation (portal/upload pipeline)."""
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     _assert_community_listing_owner(session, body.community_event_id, user_id)
     vid = uuid4()
     now = datetime.now(timezone.utc)
@@ -637,7 +637,7 @@ async def admin_patch_event_video_moderation(
     _: None = Depends(require_admin_api_token),
 ):
     if session is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     res = session.execute(
         text(
             """
@@ -650,7 +650,7 @@ async def admin_patch_event_video_moderation(
     )
     session.commit()
     if res.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Video not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
     row = session.execute(
         text("SELECT moderation_status FROM event_videos WHERE id = :id LIMIT 1"),
         {"id": str(video_id)},

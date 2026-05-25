@@ -23,7 +23,7 @@ async def capture_event_image(
     try:
         image_bytes = base64.b64decode(body.image_base64)
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid base64 payload")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid base64 payload")
 
     result = handlers.handle_capture_event_image(
         commands.CaptureEventImage(user_id=user_id, image_bytes=image_bytes),

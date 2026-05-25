@@ -22,9 +22,9 @@ async def get_draft(
     with uow:
         draft = uow.drafts.get(draft_id)
         if draft is None:
-            raise HTTPException(status_code=404, detail="Draft not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Draft not found")
         if draft.user_id != user_id:
-            raise HTTPException(status_code=403, detail="Not your draft")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your draft")
         uow.commit()
 
         return EventDraftDetailResponse(
@@ -70,9 +70,9 @@ async def patch_draft(
         )
         return result
     except DraftNotFound as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except PermissionDenied as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except InvariantViolation as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 

@@ -68,10 +68,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
       return;
     }
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session ?? null);
-      setLoading(false);
-    });
+    supabase.auth.getSession()
+      .then(({ data }) => {
+        setSession(data.session ?? null);
+        setLoading(false);
+      })
+      .catch((e) => {
+        console.error("Failed to get session", e);
+        setLoading(false);
+      });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, sess) => {
       setSession(sess);
     });
