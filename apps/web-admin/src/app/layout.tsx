@@ -19,6 +19,8 @@ export const metadata: Metadata = {
   description: "Operator console for directory overview",
 };
 
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${dmSans.variable} ${dmMono.variable}`}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAdminAuth } from "@/components/admin/admin-auth-context";
 import { listPlatformSettings, updatePlatformSetting, type PlatformSettingsRow } from "@/lib/eventflow-api";
 
@@ -14,17 +14,21 @@ export default function PlatformSettingsPage() {
   const [editValue, setEditValue] = useState("");
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    const reload = async () => {
-      setLoading(true); setErr(null);
-      try { if (!cancelled) setSettings(await listPlatformSettings(token)); }
-      catch (e: unknown) { if (!cancelled) setErr(e instanceof Error ? e.message : String(e)); }
-      finally { if (!cancelled) setLoading(false); }
-    };
-    void reload();
-    return () => { cancelled = true; };
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setErr(null);
+    try {
+      setSettings(await listPlatformSettings(token));
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
   }, [token]);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
 
   const save = async (key: string) => {
     setSaving(true);
