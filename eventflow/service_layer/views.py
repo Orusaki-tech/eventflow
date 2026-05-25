@@ -416,7 +416,7 @@ def list_feed_home(*, user_id: UUID, session: Any | None, limit: int = 50, offse
               ORDER BY ev.created_at ASC
               LIMIT 1
             ) v ON TRUE
-            WHERE e.start_time > NOW() AND e.visibility = 'public'
+            WHERE e.start_time > NOW()
             ORDER BY e.start_time ASC
             LIMIT :lim
             """
@@ -445,7 +445,7 @@ def list_feed_home(*, user_id: UUID, session: Any | None, limit: int = 50, offse
               ORDER BY ev.created_at ASC
               LIMIT 1
             ) v ON TRUE
-            WHERE e.start_time > NOW() AND e.visibility = 'public'
+            WHERE e.start_time > NOW()
             ORDER BY e.start_time ASC
             LIMIT :lim
             """
