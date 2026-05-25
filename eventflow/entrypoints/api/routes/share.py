@@ -870,7 +870,10 @@ async def share_poster(
                         price=out.get("price"),
                     )
 
-            poster_id = store.put(content_type=file.content_type or "application/octet-stream", image_bytes=image_bytes)
+            try:
+                poster_id = store.put(content_type=file.content_type or "application/octet-stream", image_bytes=image_bytes)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to store image: {str(e)}")
             now = datetime.now(timezone.utc)
             poster_asset_id = uuid4()
             uow.session.execute(

@@ -74,11 +74,11 @@ def get_upcoming_events(
             )
             SELECT e.id, e.user_id, e.title, e.start_time, e.venue, e.price,
                    a.trigger_at as alert_time,
-                   CASE
-                     WHEN e.user_id = :user_id THEN COALESCE(e.description_public, e.description_close_friends)
-                     WHEN e.visibility = 'public' THEN e.description_public
-                     ELSE e.description_close_friends
-                   END AS description
+                    CASE
+                      WHEN e.user_id = :user_id THEN COALESCE(e.description_public, e.description_close_friends)
+                      WHEN e.visibility = 'public' THEN e.description_public
+                      ELSE e.description_public
+                    END AS description
             FROM visible_events e
             LEFT JOIN alerts a ON a.event_id = e.id
                               AND a.alert_type = 'TRAFFIC_ALERT'
@@ -166,7 +166,7 @@ def list_today_events(
               CASE
                 WHEN e.user_id = :user_id THEN COALESCE(e.description_public, e.description_close_friends)
                 WHEN e.visibility = 'public' THEN e.description_public
-                ELSE e.description_close_friends
+                ELSE e.description_public
               END AS description
             FROM visible_events e, bounds b
             WHERE (e.start_time AT TIME ZONE 'UTC') + (:offset_mins || ' minutes')::interval >= b.local_day_start
