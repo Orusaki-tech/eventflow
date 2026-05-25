@@ -88,10 +88,15 @@ jobs:
               # Run migrations (with timeout to avoid hanging on DB issues)
               sleep 10
               for i in \$(seq 1 5); do
-                timeout 30 sudo docker compose exec -T api alembic upgrade head && break
+                timeout 30 sudo docker compose exec -T api alembic upgrade heads && break
                 echo 'alembic attempt '\$i' failed, retrying…'
                 sleep 5
               done
+              # All attempts exhausted
+              if [ "\$i" -eq 5 ] && ! timeout 10 sudo docker compose exec -T api alembic current 2>/dev/null | grep -qE '^[0-9a-f]{12}'; then
+                echo 'FATAL: alembic migration failed after 5 attempts' >&2
+                exit 1
+              fi
             "
 
       - name: Health check
