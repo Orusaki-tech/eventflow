@@ -125,9 +125,11 @@ jobs:
           else
             IP=$(gcloud compute instances describe ${{ vars.VM_NAME }} \
               --zone ${{ vars.ZONE }} \
+              --project ${{ secrets.GCP_PROJECT_ID }} \
               --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
             URL="http://${IP}/api/v1/healthz"
           fi
+          echo "Computed Health Check URL: ${URL}"
           for i in $(seq 1 40); do
             if curl -fsS --max-time 3 "${URL}" >/dev/null 2>&1; then
               echo "✓ API healthy at ${URL}"
