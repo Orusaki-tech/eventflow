@@ -14,6 +14,8 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
+    environment:
+      - DOMAIN=${DOMAIN:-}
     depends_on:
       api:
         condition: service_started
