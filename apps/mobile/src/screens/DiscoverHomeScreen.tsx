@@ -53,7 +53,7 @@ export function DiscoverHomeScreen() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const publicFeed = await getDiscoveryFeed(apiBaseUrl, null, { limit: 50 });
+      const publicFeed = await getDiscoveryFeed(apiBaseUrl, accessToken, { limit: 50 });
       let personalized: Awaited<ReturnType<typeof getFeedHome>> = [];
       if (accessToken) {
         try {
