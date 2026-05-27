@@ -92,7 +92,7 @@ export function FeedVideoCard({ item, isActive, onWatch }: Props) {
       {useNative && VideoComponent ? (
         <VideoComponent
           ref={videoRef}
-          source={{ uri: item.video_uri }}
+          source={{ uri: item.video_uri! }}
           style={styles.video as Record<string, unknown>}
           resizeMode="cover"
           shouldPlay={isActive}

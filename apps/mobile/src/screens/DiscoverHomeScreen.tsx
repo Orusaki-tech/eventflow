@@ -1,26 +1,33 @@
-import React, { useCallback, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Dimensions,
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  View,
-  type ViewToken,
-} from "react-native";
+import React, { useCallback, useState } from "react";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { getUnifiedFeed, logFeedWatch, getWatchQuota, type UnifiedFeedItem } from "../api/eventflow";
+import { getUnifiedFeed, getWatchQuota, type UnifiedFeedItem } from "../api/eventflow";
 import { useAuth } from "../auth/AuthContext";
 import { AppText, Button } from "../design/components";
 import { tokens } from "../design/tokens";
 import { useTheme } from "../design/theme";
-import { FeedVideoCard } from "../components/FeedVideoCard";
-import { FeedEventCard } from "../components/FeedEventCard";
-import { FeedAffiliateCard } from "../components/FeedAffiliateCard";
+import { SectionalFeed } from "../components/SectionalFeed";
 import type { RootStackParamList } from "../navigation/types";
 
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+function GreetingHeader() {
+  const { colors } = useTheme();
+  const hour = new Date().getHours();
+  let greeting = "Good evening";
+  if (hour < 12) greeting = "Good morning";
+  else if (hour < 17) greeting = "Good afternoon";
+
+  return (
+    <View style={styles.header}>
+      <AppText variant="display" style={{ color: colors.textPrimary }}>
+        {greeting}
+      </AppText>
+      <AppText tone="secondary" style={styles.subhead}>
+        Discover events, videos, and offers
+      </AppText>
+    </View>
+  );
+}
 
 export function DiscoverHomeScreen() {
   const { colors } = useTheme();
@@ -35,8 +42,6 @@ export function DiscoverHomeScreen() {
     videos_remaining: number;
     daily_limit: number;
   } | null>(null);
-  const activeIndexRef = useRef(0);
-  const flatListRef = useRef<FlatList>(null);
 
   const loadQuota = useCallback(async () => {
     if (!accessToken) return;
@@ -80,58 +85,8 @@ export function DiscoverHomeScreen() {
     })();
   }, [load, loadQuota]);
 
-  const handleViewableItemsChanged = useCallback(
-    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      if (viewableItems.length > 0) {
-        const idx = viewableItems[0].index ?? 0;
-        activeIndexRef.current = idx;
-      }
-    },
-    []
-  );
-
-  const handleWatch = useCallback(
-    async (itemId: string) => {
-      if (!accessToken) return;
-      try {
-        await logFeedWatch(apiBaseUrl, accessToken, itemId);
-        loadQuota();
-      } catch {
-        // silently fail; watch is best-effort
-      }
-    },
-    [apiBaseUrl, accessToken, loadQuota]
-  );
-
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 50,
-  }).current;
-
   const isQuotaExhausted =
     quota && !quota.is_premium && quota.videos_remaining <= 0;
-
-  const renderItem = useCallback(
-    ({ item, index }: { item: UnifiedFeedItem; index: number }) => {
-      const isActive = index === activeIndexRef.current;
-      switch (item.kind) {
-        case "video":
-          return (
-            <FeedVideoCard
-              item={item}
-              isActive={isActive}
-              onWatch={handleWatch}
-            />
-          );
-        case "event":
-          return <FeedEventCard item={item} />;
-        case "affiliate":
-          return <FeedAffiliateCard item={item} />;
-        default:
-          return null;
-      }
-    },
-    [handleWatch]
-  );
 
   if (loading && !refreshing && items.length === 0) {
     return (
@@ -143,31 +98,13 @@ export function DiscoverHomeScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
-      <FlatList
-        ref={flatListRef}
-        data={items}
-        keyExtractor={(item) => item.item_id}
-        renderItem={renderItem}
-        pagingEnabled
-        showsVerticalScrollIndicator={false}
-        snapToAlignment="start"
-        snapToInterval={SCREEN_HEIGHT}
-        decelerationRate="fast"
-        onViewableItemsChanged={handleViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.textSecondary}
-          />
-        }
-        removeClippedSubviews
-        maxToRenderPerBatch={3}
-        windowSize={3}
+      <SectionalFeed
+        items={items}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        ListHeaderComponent={<GreetingHeader />}
       />
 
-      {/* Quota enforcement overlay */}
       {isQuotaExhausted && (
         <View style={[styles.overlay, { backgroundColor: "rgba(0,0,0,0.85)" }]}>
           <AppText style={styles.overlayTitle}>Daily limit reached</AppText>
@@ -195,6 +132,14 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  header: {
+    paddingHorizontal: tokens.spacing[16],
+    paddingTop: tokens.spacing[8],
+    gap: 4,
+  },
+  subhead: {
+    fontSize: 15,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
