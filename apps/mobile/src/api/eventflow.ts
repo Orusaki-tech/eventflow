@@ -1110,6 +1110,73 @@ export async function getWatchQuota(baseUrl: string, token: string | null): Prom
   return request<WatchQuotaResponse>(baseUrl, "/api/v1/feed/status", token, { method: "GET" });
 }
 
+// ─── UNIFIED FEED (Discover v2) ─────────────────────────────────────
+
+export type UnifiedFeedVideo = {
+  item_id: string;
+  kind: "video";
+  title: string;
+  video_uri: string | null;
+  thumbnail_uri: string | null;
+  duration_seconds: number | null;
+  views: number;
+  whatsapp_taps: number;
+  video_type: string;
+  community_event_id: string | null;
+  event_title: string | null;
+  business_id: string | null;
+  business_name: string | null;
+  business_logo: string | null;
+  whatsapp_e164: string | null;
+};
+
+export type UnifiedFeedEvent = {
+  item_id: string;
+  kind: "event";
+  title: string;
+  start_time: string;
+  venue: string;
+  description: string | null;
+  poster_image_uri: string | null;
+  organizer_user_id: string;
+  business_id: string | null;
+  whatsapp_e164: string | null;
+  hero_video_uri: string | null;
+  attending_friends_count: number;
+  attending_friend_ids: string[];
+};
+
+export type UnifiedFeedAffiliate = {
+  item_id: string;
+  kind: "affiliate";
+  title: string;
+  description: string | null;
+  price_minor_units: number;
+  image_uri: string | null;
+  seller_business_id: string;
+  seller_name: string | null;
+  whatsapp_e164: string | null;
+  community_event_id: string;
+  event_title: string | null;
+  commission_seller_percent: number | null;
+};
+
+export type UnifiedFeedItem = UnifiedFeedVideo | UnifiedFeedEvent | UnifiedFeedAffiliate;
+
+export async function getUnifiedFeed(
+  baseUrl: string,
+  token: string | null,
+  args?: { limit?: number }
+): Promise<UnifiedFeedItem[]> {
+  const lim = args?.limit ?? 50;
+  return request<UnifiedFeedItem[]>(
+    baseUrl,
+    `/api/v1/discover/unified-feed?limit=${encodeURIComponent(String(lim))}`,
+    token,
+    { method: "GET" }
+  );
+}
+
 export type PointsResponse = {
   balance: number;
   lifetime_earned: number;

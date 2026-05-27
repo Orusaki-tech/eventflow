@@ -56,6 +56,24 @@ async def discovery_feed(
     return views.list_community_events(session=session, user_id=user_id, limit=limit)
 
 
+@router.get("/discover/unified-feed", status_code=status.HTTP_200_OK)
+async def unified_feed(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    cursor: str | None = Query(default=None),
+    user_id=Depends(get_current_user_id),
+    session=Depends(get_session),
+):
+    if session is None:
+        return []
+    return views.list_unified_feed(
+        session=session,
+        user_id=user_id,
+        limit=limit,
+        offset=offset,
+    )
+
+
 @router.get("/discovery/search", status_code=status.HTTP_200_OK)
 async def discovery_search(
     q: str = Query(min_length=1, max_length=2000),

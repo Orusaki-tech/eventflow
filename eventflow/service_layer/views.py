@@ -405,7 +405,7 @@ def list_feed_home(*, user_id: UUID, session: Any | None, limit: int = 50, offse
     followed = session.execute(
         text(
             """
-            SELECT e.id, e.title, e.start_time, e.venue, e.user_id, e.sponsored_rank,
+            SELECT e.id, e.title, e.start_time, e.venue, e.user_id,
                    e.poster_image_uri,
                    bl.business_id,
                    b.whatsapp_e164,
@@ -434,7 +434,7 @@ def list_feed_home(*, user_id: UUID, session: Any | None, limit: int = 50, offse
     business_followed = session.execute(
         text(
             """
-            SELECT e.id, e.title, e.start_time, e.venue, e.user_id, e.sponsored_rank,
+            SELECT e.id, e.title, e.start_time, e.venue, e.user_id,
                    e.poster_image_uri,
                    bl.business_id,
                    b.whatsapp_e164,
@@ -465,7 +465,7 @@ def list_feed_home(*, user_id: UUID, session: Any | None, limit: int = 50, offse
     trending = session.execute(
         text(
             """
-            SELECT e.id, e.title, e.start_time, e.venue, e.user_id, e.sponsored_rank,
+            SELECT e.id, e.title, e.start_time, e.venue, e.user_id,
                    e.poster_image_uri,
                    bl.business_id,
                    b.whatsapp_e164,
@@ -480,8 +480,8 @@ def list_feed_home(*, user_id: UUID, session: Any | None, limit: int = 50, offse
               ORDER BY ev.created_at ASC
               LIMIT 1
             ) v ON TRUE
-            WHERE e.start_time > NOW() AND e.visibility = 'public'
-            ORDER BY e.sponsored_rank DESC, e.start_time ASC
+            WHERE e.start_time > NOW()
+            ORDER BY e.start_time ASC
             LIMIT :lim
             """
         ),
@@ -493,6 +493,173 @@ def list_feed_home(*, user_id: UUID, session: Any | None, limit: int = 50, offse
             merged[k] = dict(r._mapping)
 
     items = list(merged.values())
-    items.sort(key=lambda row: (-int(row.get("sponsored_rank") or 0), row.get("start_time")))
+    items.sort(key=lambda row: row.get("start_time"))
     return items[int(offset) : int(offset) + int(limit)]
+
+
+def list_unified_feed(
+    *,
+    session: Any,
+    user_id: UUID | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> List[dict]:
+    """Blend feed_videos, community_events, and affiliate products into a single interleaved feed."""
+    fetch = int(limit) + int(offset)
+
+    # 1. Business promo videos (feed_videos)
+    videos = session.execute(
+        text(
+            """
+            SELECT
+                fv.id AS item_id,
+                'video' AS kind,
+                fv.title,
+                fv.video_uri,
+                fv.thumbnail_uri,
+                fv.duration_seconds,
+                fv.views,
+                fv.whatsapp_taps,
+                fv.video_type,
+                fv.community_event_id,
+                ce.title AS event_title,
+                b.id AS business_id,
+                b.name AS business_name,
+                b.logo_url AS business_logo,
+                b.whatsapp_e164
+            FROM feed_videos fv
+            LEFT JOIN businesses b ON b.id = fv.business_id
+            LEFT JOIN community_events ce ON ce.id = fv.community_event_id
+            WHERE fv.moderation_status = 'approved'
+            ORDER BY fv.created_at DESC
+            LIMIT :lim
+            """
+        ),
+        {"lim": fetch},
+    ).fetchall()
+
+    # 2. Community events with attending friends count
+    uid_filter = ""
+    uid_params: dict[str, object] = {}
+    if user_id:
+        uid_filter = """
+            LEFT JOIN (
+                SELECT gr.event_id, ARRAY_AGG(DISTINCT gr.user_id) AS attending_user_ids, COUNT(DISTINCT gr.user_id) AS attending_count
+                FROM group_rsvps gr
+                JOIN group_memberships gm ON gm.group_id = gr.group_id
+                WHERE gm.user_id = :uid AND gr.status = 'going'
+                GROUP BY gr.event_id
+            ) att ON att.event_id = e.id
+        """
+        uid_params["uid"] = str(user_id)
+    uid_params["lim"] = fetch
+
+    events = session.execute(
+        text(
+            f"""
+            SELECT
+                e.id AS item_id,
+                'event' AS kind,
+                e.title,
+                e.start_time,
+                e.venue,
+                e.description,
+                e.poster_image_uri,
+                e.user_id AS organizer_user_id,
+                bl.business_id,
+                b.whatsapp_e164,
+                v.hero_video_uri,
+                COALESCE(att.attending_count, 0) AS attending_friends_count,
+                COALESCE(att.attending_user_ids, ARRAY[]::uuid[]) AS attending_friend_ids
+            FROM community_events e
+            LEFT JOIN business_listing_attachments bl ON bl.community_event_id = e.id
+            LEFT JOIN businesses b ON b.id = bl.business_id
+            LEFT JOIN LATERAL (
+              SELECT ev.storage_uri AS hero_video_uri
+              FROM event_videos ev
+              WHERE ev.community_event_id = e.id AND ev.moderation_status = 'approved'
+              ORDER BY ev.created_at ASC
+              LIMIT 1
+            ) v ON TRUE
+            {uid_filter}
+            ORDER BY e.start_time DESC
+            LIMIT :lim
+            """
+        ),
+        uid_params,
+    ).fetchall()
+
+    # 3. Affiliate products linked to events
+    affiliates = session.execute(
+        text(
+            """
+            SELECT
+                pel.id AS item_id,
+                'affiliate' AS kind,
+                p.title,
+                p.description,
+                p.price_minor_units,
+                p.image_uri,
+                pel.seller_business_id,
+                b.name AS seller_name,
+                b.whatsapp_e164,
+                pel.community_event_id,
+                ce.title AS event_title,
+                pel.commission_seller_percent
+            FROM product_event_links pel
+            JOIN products p ON p.id = pel.product_id
+            LEFT JOIN businesses b ON b.id = pel.seller_business_id
+            LEFT JOIN community_events ce ON ce.id = pel.community_event_id
+            WHERE pel.status = 'approved'
+            ORDER BY pel.id DESC
+            LIMIT :lim
+            """
+        ),
+        {"lim": fetch},
+    ).fetchall()
+
+    # 4. Interleave: pattern [video, video, event, video, video, affiliate]
+    # Ratio: 66% video, 16% event, 16% affiliate
+    pattern = ["V", "V", "E", "V", "V", "A"]
+    result: list[dict] = []
+    vi = ei = ai = 0
+    max_items = int(limit) + int(offset)
+    slot = 0
+    while len(result) < max_items:
+        kind = pattern[slot % len(pattern)]
+        slot += 1
+        if kind == "V" and vi < len(videos):
+            result.append(dict(videos[vi]._mapping))
+            vi += 1
+        elif kind == "E" and ei < len(events):
+            ev = dict(events[ei]._mapping)
+            if ev.get("attending_friend_ids") and isinstance(ev["attending_friend_ids"], list):
+                ev["attending_friend_ids"] = [str(uid) for uid in ev["attending_friend_ids"]]
+            result.append(ev)
+            ei += 1
+        elif kind == "A" and ai < len(affiliates):
+            result.append(dict(affiliates[ai]._mapping))
+            ai += 1
+        else:
+            # Fallback: add whatever is available
+            added = False
+            if vi < len(videos):
+                result.append(dict(videos[vi]._mapping))
+                vi += 1
+                added = True
+            elif ei < len(events):
+                ev = dict(events[ei]._mapping)
+                if ev.get("attending_friend_ids") and isinstance(ev["attending_friend_ids"], list):
+                    ev["attending_friend_ids"] = [str(uid) for uid in ev["attending_friend_ids"]]
+                result.append(ev)
+                ei += 1
+                added = True
+            elif ai < len(affiliates):
+                result.append(dict(affiliates[ai]._mapping))
+                ai += 1
+                added = True
+            if not added:
+                break
+
+    return result[int(offset) : int(offset) + int(limit)]
 

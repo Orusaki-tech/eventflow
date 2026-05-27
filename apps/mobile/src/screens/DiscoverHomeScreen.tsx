@@ -1,214 +1,217 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   FlatList,
-  Image,
-  Linking,
-  Pressable,
   RefreshControl,
+  StyleSheet,
   View,
+  type ViewToken,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import {
-  EventflowApiError,
-  getDiscoveryFeed,
-  getFeedHome,
-  postListingAnalytics,
-} from "../api/eventflow";
+import { getUnifiedFeed, logFeedWatch, getWatchQuota, type UnifiedFeedItem } from "../api/eventflow";
 import { useAuth } from "../auth/AuthContext";
-import { AppText, Button, Card } from "../design/components";
-import { pressedOpacityStyle, tokens } from "../design/tokens";
+import { AppText, Button } from "../design/components";
+import { tokens } from "../design/tokens";
 import { useTheme } from "../design/theme";
-import { useThemedStyles } from "../design/useThemedStyles";
-import { formatFriendlyEventDateTime } from "../lib/eventDateTime";
-import { mergeDiscoverSources, type DiscoverMergedRow } from "../lib/mergeDiscoverFeed";
-import { whatsAppMeUrlFromE164 } from "../lib/whatsappLink";
-import { navigationRef } from "../navigation/navigationRef";
+import { FeedVideoCard } from "../components/FeedVideoCard";
+import { FeedEventCard } from "../components/FeedEventCard";
+import { FeedAffiliateCard } from "../components/FeedAffiliateCard";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 export function DiscoverHomeScreen() {
   const { colors } = useTheme();
-  const styles = useThemedStyles((c) => ({
-    root: { flex: 1, backgroundColor: c.bg },
-    center: { flex: 1, paddingVertical: 32, alignItems: "center" as const, justifyContent: "center" as const },
-    listContent: { padding: tokens.spacing[16], gap: tokens.spacing[12], flexGrow: 1 },
-    empty: { paddingVertical: 24 },
-    card: { padding: tokens.spacing[16], gap: tokens.spacing[8] },
-    meta: {},
-    venue: {},
-    hero: {
-      width: "100%" as const,
-      height: 160,
-      borderRadius: tokens.radii.sm,
-      marginBottom: tokens.spacing[8],
-      backgroundColor: c.surface1,
-    },
-  }));
-
   const { accessToken, apiBaseUrl, refreshSession } = useAuth();
-  const [items, setItems] = useState<DiscoverMergedRow[]>([]);
+  const [items, setItems] = useState<UnifiedFeedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [quota, setQuota] = useState<{
+    is_premium: boolean;
+    videos_watched_today: number;
+    videos_remaining: number;
+    daily_limit: number;
+  } | null>(null);
+  const activeIndexRef = useRef(0);
+  const flatListRef = useRef<FlatList>(null);
+
+  const loadQuota = useCallback(async () => {
+    if (!accessToken) return;
+    try {
+      const q = await getWatchQuota(apiBaseUrl, accessToken);
+      setQuota(q);
+    } catch {
+      // quota unavailable — skip overlay
+    }
+  }, [apiBaseUrl, accessToken]);
 
   const load = useCallback(async () => {
-    setError(null);
     try {
-      const publicFeed = await getDiscoveryFeed(apiBaseUrl, accessToken, { limit: 50 });
-      let personalized: Awaited<ReturnType<typeof getFeedHome>> = [];
-      if (accessToken) {
-        try {
-          personalized = await getFeedHome(apiBaseUrl, accessToken, { limit: 50 });
-        } catch (e: unknown) {
-          if (e instanceof EventflowApiError && e.status === 401) await refreshSession().catch(() => undefined);
-          personalized = [];
-        }
-      }
-      setItems(mergeDiscoverSources(personalized, publicFeed));
+      const feed = await getUnifiedFeed(apiBaseUrl, accessToken, { limit: 50 });
+      setItems(feed);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (e instanceof Error && "status" in e && (e as { status: number }).status === 401) {
+        await refreshSession().catch(() => undefined);
+      }
       setItems([]);
     }
-  }, [accessToken, apiBaseUrl, refreshSession]);
+  }, [apiBaseUrl, accessToken, refreshSession]);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
       void (async () => {
         setLoading(true);
-        await load();
+        await Promise.all([load(), loadQuota()]);
         if (!cancelled) setLoading(false);
       })();
-      return () => {
-        cancelled = true;
-      };
-    }, [load])
+      return () => { cancelled = true; };
+    }, [load, loadQuota])
   );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     void (async () => {
-      await load();
+      await Promise.all([load(), loadQuota()]);
       setRefreshing(false);
     })();
-  }, [load]);
+  }, [load, loadQuota]);
 
-  const openListing = (row: DiscoverMergedRow) => {
-    if (!navigationRef.isReady()) return;
-    navigationRef.navigate("CommunityListingDetail", {
-      communityEventId: row.communityEventId,
-      organizerUserId: row.organizerUserId,
-      title: row.title,
-      start_time: row.start_time,
-      venue: row.venue,
-      whatsapp_e164: row.whatsapp_e164 ?? null,
-      business_id: row.business_id ?? null,
-    });
-  };
-
-  const openListingWhatsApp = (row: DiscoverMergedRow) => {
-    const raw = row.whatsapp_e164?.trim();
-    if (!raw) return;
-    const url = whatsAppMeUrlFromE164(raw);
-    if (!url) return;
-    void (async () => {
-      try {
-        if (accessToken) {
-          await postListingAnalytics(apiBaseUrl, accessToken, {
-            metric_type: "whatsapp_tap",
-            community_event_id: row.communityEventId,
-            business_id: row.business_id ?? null,
-          });
-        }
-      } catch (e: unknown) {
-        if (e instanceof EventflowApiError && e.status === 401) await refreshSession().catch(() => undefined);
+  const handleViewableItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      if (viewableItems.length > 0) {
+        const idx = viewableItems[0].index ?? 0;
+        activeIndexRef.current = idx;
       }
-      const ok = await Linking.canOpenURL(url);
-      if (ok) await Linking.openURL(url);
-    })();
-  };
+    },
+    []
+  );
 
-  if (loading && !refreshing) {
+  const handleWatch = useCallback(
+    async (itemId: string) => {
+      if (!accessToken) return;
+      try {
+        await logFeedWatch(apiBaseUrl, accessToken, itemId);
+        loadQuota();
+      } catch {
+        // silently fail; watch is best-effort
+      }
+    },
+    [apiBaseUrl, accessToken, loadQuota]
+  );
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50,
+  }).current;
+
+  const isQuotaExhausted =
+    quota && !quota.is_premium && quota.videos_remaining <= 0;
+
+  const renderItem = useCallback(
+    ({ item, index }: { item: UnifiedFeedItem; index: number }) => {
+      const isActive = index === activeIndexRef.current;
+      switch (item.kind) {
+        case "video":
+          return (
+            <FeedVideoCard
+              item={item}
+              isActive={isActive}
+              onWatch={handleWatch}
+            />
+          );
+        case "event":
+          return <FeedEventCard item={item} />;
+        case "affiliate":
+          return <FeedAffiliateCard item={item} />;
+        default:
+          return null;
+      }
+    },
+    [handleWatch]
+  );
+
+  if (loading && !refreshing && items.length === 0) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color={colors.textSecondary} />
+      <View style={[styles.center, { backgroundColor: colors.bg }]}>
+        <ActivityIndicator color={colors.textSecondary} size="large" />
       </View>
     );
   }
 
   return (
-    <FlatList
-      style={styles.root}
-      contentContainerStyle={styles.listContent}
-      data={items}
-      keyExtractor={(item) => item.communityEventId}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      ListEmptyComponent={
-        error ? (
-          <AppText tone="secondary" style={styles.empty}>
-            {error}
+    <View style={[styles.root, { backgroundColor: colors.bg }]}>
+      <FlatList
+        ref={flatListRef}
+        data={items}
+        keyExtractor={(item) => item.item_id}
+        renderItem={renderItem}
+        pagingEnabled
+        showsVerticalScrollIndicator={false}
+        snapToAlignment="start"
+        snapToInterval={SCREEN_HEIGHT}
+        decelerationRate="fast"
+        onViewableItemsChanged={handleViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.textSecondary}
+          />
+        }
+        removeClippedSubviews
+        maxToRenderPerBatch={3}
+        windowSize={3}
+      />
+
+      {/* Quota enforcement overlay */}
+      {isQuotaExhausted && (
+        <View style={[styles.overlay, { backgroundColor: "rgba(0,0,0,0.85)" }]}>
+          <AppText style={styles.overlayTitle}>Daily limit reached</AppText>
+          <AppText style={styles.overlaySub}>
+            You've watched all {quota!.daily_limit} free videos today.
+            {"\n"}Subscribe for unlimited access or come back tomorrow.
           </AppText>
-        ) : (
-          <AppText tone="tertiary" style={styles.empty}>
-            No community listings yet. Try again after events are published to discovery.
-          </AppText>
-        )
-      }
-      renderItem={({ item }) => {
-        const poster = item.poster_image_uri?.trim();
-        const promoVideo = item.hero_video_uri?.trim();
-        const waUrl = item.whatsapp_e164?.trim() ? whatsAppMeUrlFromE164(item.whatsapp_e164.trim()) : null;
-        return (
-          <Card style={styles.card}>
-            <Pressable accessibilityLabel="View listing details" style={({ pressed }) => [pressedOpacityStyle(pressed)]} onPress={() => openListing(item)}>
-              <View>
-                {poster ? (
-                  <Image source={{ uri: poster }} style={styles.hero} resizeMode="cover" />
-                ) : promoVideo ? (
-                  <View style={[styles.hero, { justifyContent: "center", alignItems: "center" }]}>
-                    <AppText variant="labelSmall" tone="tertiary">
-                      Video promo
-                    </AppText>
-                  </View>
-                ) : null}
-                <AppText variant="title">{item.title}</AppText>
-                <AppText tone="secondary" style={styles.meta}>
-                  {formatFriendlyEventDateTime(item.start_time)}
-                </AppText>
-                <AppText tone="secondary" style={styles.venue}>
-                  {item.venue}
-                </AppText>
-                {item.organizerUserId ? (
-                  <AppText variant="labelSmall" tone="tertiary">
-                    From someone you follow or trending
-                  </AppText>
-                ) : (
-                  <AppText variant="labelSmall" tone="tertiary">
-                    Discovery
-                  </AppText>
-                )}
-              </View>
-            </Pressable>
-            {promoVideo ? (
-              <Button
-                label="Open video promo"
-                variant="outline"
-                size="md"
-                onPress={() => void Linking.openURL(promoVideo)}
-                fullWidth
-              />
-            ) : null}
-            {waUrl ? (
-              <Button
-                label="Chat on WhatsApp"
-                variant="filled"
-                size="md"
-                onPress={() => openListingWhatsApp(item)}
-                fullWidth
-              />
-            ) : null}
-          </Card>
-        );
-      }}
-    />
+          <Button
+            label="Subscribe"
+            variant="filled"
+            size="md"
+            onPress={() => {
+              // Navigate to subscription screen in future
+            }}
+          />
+        </View>
+      )}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+    gap: 16,
+  },
+  overlayTitle: {
+    fontSize: 24,
+    fontWeight: "900",
+    color: "#fff",
+    textAlign: "center",
+  },
+  overlaySub: {
+    fontSize: 16,
+    color: "rgba(255,255,255,0.7)",
+    textAlign: "center",
+    lineHeight: 22,
+  },
+});
