@@ -20,14 +20,16 @@ type Props = {
   onSaveToCalendar?: (item: UnifiedFeedEvent) => void;
 };
 
-function formatPrice(minor: number | null): string | null {
+function formatPrice(minor: number | null, currency: string = "KES"): string | null {
   if (minor === null || minor === undefined) return null;
   if (minor === 0) return "Free";
-  return `KES ${(minor / 100).toLocaleString()}`;
+  return `${currency} ${(minor / 100).toLocaleString()}`;
 }
 
 function countdownLabel(startTime: string): string | null {
-  const diff = new Date(startTime).getTime() - Date.now();
+  const d = new Date(startTime);
+  if (isNaN(d.getTime())) return null;
+  const diff = d.getTime() - Date.now();
   if (diff < 0) return "Happening now";
   const hours = diff / 3600000;
   if (hours < 1) return "Starting soon";

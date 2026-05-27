@@ -314,8 +314,6 @@ async def get_user_public_profile(
     if not row[2]:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    now = datetime.now(timezone.utc)
-
     events_organized = session.execute(
         text("""
             SELECT id, title, start_time, venue, poster_image_uri
