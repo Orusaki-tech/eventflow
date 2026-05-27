@@ -254,9 +254,9 @@ export function SocialHubScreen({ navigation }: Props) {
     try {
       const res = await searchUsers(apiBaseUrl, accessToken, q);
       setPeople(res.results);
-      setPeopleTotal(res.total);
-    } catch {
-      // silently fail
+      setPeopleTotal(res.total ?? res.results.length);
+    } catch (e) {
+      if (e instanceof Error) Alert.alert("Search Error", e.message);
     } finally {
       setPeopleLoading(false);
     }

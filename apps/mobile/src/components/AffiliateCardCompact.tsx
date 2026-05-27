@@ -5,6 +5,7 @@ import { AppText } from "../design/components";
 import { pressedOpacityStyle, tokens } from "../design/tokens";
 import { useTheme } from "../design/theme";
 import { COMPACT_CARD_WIDTH } from "./EventCardCompact";
+import { navigationRef } from "../navigation/navigationRef";
 
 type Props = {
   item: UnifiedFeedAffiliate;
@@ -21,10 +22,15 @@ export function AffiliateCardCompact({ item }: Props) {
     <Pressable
       style={({ pressed }) => [styles.card, pressedOpacityStyle(pressed)]}
       onPress={() => {
-        // Open WhatsApp inquiry directly
-        if (item.whatsapp_e164) {
-          const url = `https://wa.me/${item.whatsapp_e164.replace(/^\+/, "")}`;
-          Linking.openURL(url);
+        if (item.whatsapp_e164 && navigationRef.isReady()) {
+          navigationRef.navigate("AffiliateWhatsAppPreview", {
+            whatsapp_e164: item.whatsapp_e164,
+            seller_name: item.seller_name ?? "Unknown seller",
+            price_minor_units: item.price_minor_units ?? null,
+            image_uri: item.image_uri ?? null,
+            event_title: item.title ?? "Affiliate Item",
+            communityEventId: item.community_event_id,
+          });
         }
       }}
     >

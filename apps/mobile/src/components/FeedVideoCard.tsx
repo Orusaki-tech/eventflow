@@ -178,8 +178,16 @@ export function FeedVideoCard({ item, isActive, onWatch }: Props) {
           <Pressable
             style={({ pressed }) => [styles.whatsappBtn, pressedOpacityStyle(pressed)]}
             onPress={() => {
-              const clean = item.whatsapp_e164!.replace(/^\+/, "");
-              Linking.openURL(`https://wa.me/${clean}`);
+              if (navigationRef.isReady()) {
+                navigationRef.navigate("AffiliateWhatsAppPreview", {
+                  whatsapp_e164: item.whatsapp_e164!,
+                  seller_name: "Event Organizer",
+                  price_minor_units: null,
+                  image_uri: item.thumbnail_uri ?? null,
+                  event_title: item.title ?? "Event",
+                  communityEventId: item.community_event_id ?? undefined,
+                });
+              }
             }}
           >
             <AppText style={styles.whatsappText}>Chat on WhatsApp</AppText>

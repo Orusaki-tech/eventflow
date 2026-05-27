@@ -22,6 +22,7 @@ import { ProcessingScreen } from "../screens/ProcessingScreen";
 import { SocialHubScreen } from "../screens/SocialHubScreen";
 import { SubscriptionScreen } from "../screens/SubscriptionScreen";
 import { UserPublicProfileScreen } from "../screens/UserPublicProfileScreen";
+import { AffiliateWhatsAppPreviewScreen } from "../screens/AffiliateWhatsAppPreviewScreen";
 import { STORAGE_ONBOARDING_DONE } from "../lib/constants";
 import { useTheme } from "../design/theme";
 import { navigationRef } from "./navigationRef";
@@ -165,6 +166,11 @@ export function RootNavigator() {
           name="UserPublicProfile"
           component={UserPublicProfileScreen}
           options={{ title: "Profile" }}
+        />
+        <Stack.Screen
+          name="AffiliateWhatsAppPreview"
+          component={AffiliateWhatsAppPreviewScreen}
+          options={{ title: "Message Affiliate", presentation: "modal" }}
         />
         <Stack.Screen
           name="SocialHub"

@@ -84,4 +84,12 @@ export type RootStackParamList = {
     userId: string;
     displayName?: string;
   };
+  AffiliateWhatsAppPreview: {
+    whatsapp_e164: string;
+    seller_name: string;
+    price_minor_units: number | null;
+    image_uri: string | null;
+    event_title: string;
+    communityEventId?: string;
+  };
 };

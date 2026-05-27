@@ -571,12 +571,6 @@ async def listing_carousel(
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Listing not found")
     
-    owner_user_id = row[3]
-    
-    # Check authorization: allow if user is owner
-    if owner_user_id != user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this listing")
-    
     poster_uri = row[2]
     img = str(poster_uri).strip() if poster_uri else None
     slides: list[CarouselSlide] = [

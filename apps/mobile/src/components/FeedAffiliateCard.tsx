@@ -86,8 +86,16 @@ export function FeedAffiliateCard({ item }: Props) {
           <Pressable
             style={({ pressed }) => [styles.whatsappBtn, pressedOpacityStyle(pressed)]}
             onPress={() => {
-              const url = `https://wa.me/${item.whatsapp_e164?.replace(/^\+/, "")}`;
-              Linking.openURL(url);
+              if (navigationRef.isReady()) {
+                navigationRef.navigate("AffiliateWhatsAppPreview", {
+                  whatsapp_e164: item.whatsapp_e164!,
+                  seller_name: item.seller_name ?? "Unknown seller",
+                  price_minor_units: item.price_minor_units ?? null,
+                  image_uri: item.image_uri ?? null,
+                  event_title: item.title ?? "Affiliate Item",
+                  communityEventId: item.community_event_id,
+                });
+              }
             }}
           >
             <AppText style={styles.whatsappText}>Inquire on WhatsApp</AppText>

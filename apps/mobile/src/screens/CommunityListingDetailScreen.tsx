@@ -48,6 +48,24 @@ import { whatsAppMeUrlFromE164 } from "../lib/whatsappLink";
 import type { RootStackParamList } from "../navigation/types";
 import { navigationRef } from "../navigation/navigationRef";
 
+let NativeVideo: React.ComponentType<{
+  source: { uri: string };
+  style?: Record<string, unknown>;
+  resizeMode?: string;
+  shouldPlay?: boolean;
+  isMuted?: boolean;
+  isLooping?: boolean;
+  useNativeControls?: boolean;
+  onPlaybackStatusUpdate?: (status: Record<string, unknown>) => void;
+  ref?: React.Ref<unknown>;
+}> | null = null;
+
+try {
+  NativeVideo = require("expo-av").Video;
+} catch {
+  // expo-av not installed, will use fallback
+}
+
 type Props = NativeStackScreenProps<RootStackParamList, "CommunityListingDetail">;
 
 const WINDOW_WIDTH = Dimensions.get("window").width;
@@ -57,7 +75,7 @@ export function CommunityListingDetailScreen({ route }: Props) {
   const { colors } = useTheme();
   const stylesObj = useThemedStyles((c) => ({
     root: { flex: 1, backgroundColor: c.bg },
-    scrollContent: { padding: tokens.spacing[16], gap: tokens.spacing[16], paddingBottom: 40 },
+    scrollContent: { padding: tokens.spacing[16], gap: tokens.spacing[16], paddingBottom: 50 },
     center: { paddingVertical: 24, alignItems: "center" as const },
     headlineCard: { padding: tokens.spacing[16], gap: tokens.spacing[8] },
     slidePoster: {
@@ -319,22 +337,16 @@ export function CommunityListingDetailScreen({ route }: Props) {
     if (!raw) return;
     const url = whatsAppMeUrlFromE164(raw);
     if (!url) return;
-    void (async () => {
-      try {
-        if (accessToken) {
-          await postListingAnalytics(apiBaseUrl, accessToken, {
-            metric_type: "whatsapp_tap",
-            community_event_id: communityEventId,
-            business_id: business_id ?? null,
-          });
-        }
-      } catch {
-        /* ignore analytics failure */
-      }
-      const ok = await Linking.canOpenURL(url);
-      if (ok) await Linking.openURL(url);
-      else Alert.alert("WhatsApp", url);
-    })();
+    
+    // Instead of opening directly, show the preview modal
+    navigationRef.navigate("AffiliateWhatsAppPreview", {
+      whatsapp_e164: raw,
+      seller_name: business_id ? "Organizer" : (paramTitle ?? "Organizer"),
+      price_minor_units: ticketTypes[0]?.price_minor_units ?? null,
+      image_uri: slides.find((s) => s.kind === "poster")?.image_uri ?? null,
+      event_title: paramTitle ?? "Event",
+      communityEventId: communityEventId,
+    });
   };
 
   const handleRsvp = (status: string) => {
@@ -449,9 +461,20 @@ export function CommunityListingDetailScreen({ route }: Props) {
           Video
         </AppText>
         {uri ? (
-          <View style={{ marginTop: tokens.spacing[8] }}>
-            <Button label="Open video" variant="outline" size="md" onPress={() => void Linking.openURL(uri)} />
-          </View>
+          NativeVideo ? (
+            <View style={{ marginTop: tokens.spacing[8], width: CAROUSEL_WIDTH - tokens.spacing[16] * 2, height: 180, borderRadius: tokens.radii.sm, overflow: "hidden" }}>
+              <NativeVideo
+                source={{ uri }}
+                style={{ width: "100%", height: "100%" }}
+                resizeMode="cover"
+                useNativeControls
+              />
+            </View>
+          ) : (
+            <View style={{ marginTop: tokens.spacing[8] }}>
+              <Button label="Open video" variant="outline" size="md" onPress={() => void Linking.openURL(uri)} />
+            </View>
+          )
         ) : (
           <AppText tone="secondary">No playable URL</AppText>
         )}

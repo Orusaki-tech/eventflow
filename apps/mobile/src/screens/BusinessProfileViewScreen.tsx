@@ -26,7 +26,7 @@ export function BusinessProfileViewScreen({ route }: Props) {
   const { accessToken, refreshSession, apiBaseUrl } = useAuth();
   const styles = useThemedStyles((c) => ({
     root: { flex: 1, backgroundColor: c.bg },
-    scrollContent: { padding: tokens.spacing[16], gap: tokens.spacing[16], paddingBottom: 40 },
+    scrollContent: { padding: tokens.spacing[16], gap: tokens.spacing[16], paddingBottom: 50 },
     center: { paddingVertical: 24, alignItems: "center" as const },
     header: { alignItems: "center" as const, gap: tokens.spacing[8], paddingVertical: tokens.spacing[16] },
     logo: { width: 80, height: 80, borderRadius: 40, backgroundColor: c.surface1 },

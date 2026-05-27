@@ -45,7 +45,7 @@ export function ProfileScreen({ navigation }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles((c) => ({
     root: { flex: 1, backgroundColor: c.bg },
-    content: { padding: tokens.spacing[20], gap: tokens.spacing[16], flexGrow: 1 },
+    content: { padding: tokens.spacing[20], gap: tokens.spacing[16], flexGrow: 1, paddingBottom: 50 },
     card: { padding: tokens.spacing[16], gap: tokens.spacing[10] },
     email: {},
     center: { paddingVertical: 24, alignItems: "center" as const },

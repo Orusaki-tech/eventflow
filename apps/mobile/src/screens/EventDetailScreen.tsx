@@ -39,7 +39,7 @@ export function EventDetailScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles((c) => ({
     root: { flex: 1, backgroundColor: c.bg },
-    content: { padding: tokens.spacing[20], gap: tokens.spacing[16], flexGrow: 1 },
+    content: { padding: tokens.spacing[20], gap: tokens.spacing[16], flexGrow: 1, paddingBottom: 50 },
     linkRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: tokens.spacing[12] },
     linkTextCol: { flex: 1, minWidth: 0 },
     linkText: { textDecorationLine: "underline" as const },

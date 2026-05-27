@@ -36,7 +36,7 @@ export function HomeScreen({ navigation }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles((c) => ({
     root: { flex: 1, backgroundColor: c.bg },
-    content: { paddingBottom: 32, flexGrow: 1 },
+    content: { paddingBottom: 50, flexGrow: 1 },
     lead: { marginBottom: tokens.spacing[8] },
     center: { paddingVertical: 48, alignItems: "center" as const, justifyContent: "center" as const },
     empty: { lineHeight: 20 },
