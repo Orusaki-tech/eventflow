@@ -1,16 +1,16 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, FlatList, StyleSheet, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { listMyOrders, type OrderRow } from "../api/eventflow";
 import { useAuth } from "../auth/AuthContext";
 import { AppText } from "../design/components";
-import { pressedOpacityStyle, tokens } from "../design/tokens";
+import { tokens } from "../design/tokens";
 import { useTheme } from "../design/theme";
-import type { RootStackParamList } from "../navigation/types";
-
-type Props = NativeStackScreenProps<RootStackParamList, "MyTickets">;
+// Used in both TicketsStack (TicketsHome) and RootStack (MyTickets)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Props = any;
 
 export function MyTicketsScreen(_props: Props) {
   const { colors } = useTheme();

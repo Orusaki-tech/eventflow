@@ -398,7 +398,7 @@ export function SocialHubScreen({ navigation }: Props) {
         </View>
         <Pressable
           style={({ pressed }) => [pressedOpacityStyle(pressed), { marginRight: 8 }]}
-          onPress={() => navigationRef.navigate("UserPublicProfile", { userId: u.user_id, displayName: u.display_name })}
+          onPress={() => navigation.navigate("UserPublicProfile", { userId: u.user_id, displayName: u.display_name })}
         >
           <AppText tone="secondary" variant="labelSmall" style={{ textDecorationLine: "underline" }}>
             View
