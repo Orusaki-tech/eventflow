@@ -382,7 +382,11 @@ export function SocialHubScreen({ navigation }: Props) {
     const initial = u.display_name.charAt(0).toUpperCase();
 
     return (
-      <View key={u.user_id} style={styles.userRow}>
+      <Pressable
+        key={u.user_id}
+        style={({ pressed }) => [styles.userRow, pressedOpacityStyle(pressed)]}
+        onPress={() => navigation.navigate("UserPublicProfile", { userId: u.user_id, displayName: u.display_name })}
+      >
         {u.avatar_url ? (
           <Image source={{ uri: u.avatar_url }} style={styles.avatar} />
         ) : (
@@ -396,18 +400,10 @@ export function SocialHubScreen({ navigation }: Props) {
             {u.user_id.slice(0, 8)}...
           </AppText>
         </View>
-        <Pressable
-          style={({ pressed }) => [pressedOpacityStyle(pressed), { marginRight: 8 }]}
-          onPress={() => navigation.navigate("UserPublicProfile", { userId: u.user_id, displayName: u.display_name })}
-        >
-          <AppText tone="secondary" variant="labelSmall" style={{ textDecorationLine: "underline" }}>
-            View
-          </AppText>
-        </Pressable>
         {isFollowing ? (
           <Pressable
             style={({ pressed }) => [pressedOpacityStyle(pressed)]}
-            onPress={() => unfollowRow(u.user_id)}
+            onPress={(e) => { e.stopPropagation(); unfollowRow(u.user_id); }}
           >
             <AppText tone="secondary" variant="labelSmall" style={{ textDecorationLine: "underline" }}>
               Unfollow
@@ -418,10 +414,10 @@ export function SocialHubScreen({ navigation }: Props) {
             label="Follow"
             variant="outline"
             size="md"
-            onPress={() => followUser(u.user_id)}
+            onPress={(e) => { e?.stopPropagation?.(); followUser(u.user_id); }}
           />
         )}
-      </View>
+      </Pressable>
     );
   };
 
