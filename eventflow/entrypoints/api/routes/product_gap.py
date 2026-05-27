@@ -563,7 +563,7 @@ async def listing_carousel(
     row = session.execute(
         text(
             """
-            SELECT title, venue, poster_image_uri, visibility, user_id FROM community_events WHERE id = :id LIMIT 1
+            SELECT title, venue, poster_image_uri, user_id FROM community_events WHERE id = :id LIMIT 1
             """
         ),
         {"id": str(community_event_id)},
@@ -571,11 +571,10 @@ async def listing_carousel(
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Listing not found")
     
-    visibility = row[3]
-    owner_user_id = row[4]
+    owner_user_id = row[3]
     
-    # Check authorization: allow if public OR user is owner
-    if visibility != "public" and owner_user_id != user_id:
+    # Check authorization: allow if user is owner
+    if owner_user_id != user_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this listing")
     
     poster_uri = row[2]

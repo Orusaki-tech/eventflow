@@ -269,12 +269,12 @@ def list_community_events(*, session: Any, user_id: UUID | None = None, limit: i
               ORDER BY ev.created_at ASC
               LIMIT 1
             ) v ON TRUE
-            WHERE e.visibility = 'public' OR (:uid IS NOT NULL AND e.user_id = :uid::uuid)
+            WHERE TRUE
             ORDER BY e.start_time DESC
             LIMIT :limit
             """
         ),
-        {"uid": str(user_id) if user_id else None, "limit": int(limit)},
+        {"limit": int(limit)},
     )
     return [dict(r._mapping) for r in results]
 
