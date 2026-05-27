@@ -372,6 +372,24 @@ class SharedLinkListingStatusResponse(BaseModel):
     status: str | None = None
 
 
+class UserProfileResponse(BaseModel):
+    user_id: UUID
+    display_name: str
+    avatar_url: str | None = None
+    is_public: bool = True
+
+
+class UserProfileUpsertRequest(BaseModel):
+    display_name: str = Field(min_length=1, max_length=128)
+    avatar_url: str | None = None
+    is_public: bool | None = None
+
+
+class UserProfileSearchResponse(BaseModel):
+    results: list[UserProfileResponse]
+    total: int
+
+
 class BusinessCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=512)
     whatsapp_e164: str | None = Field(default=None, max_length=32)

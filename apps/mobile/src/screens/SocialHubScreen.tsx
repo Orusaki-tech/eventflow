@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   Modal,
   Pressable,
   RefreshControl,
@@ -20,9 +21,12 @@ import {
   listFollowing,
   listGroups,
   postCreateGroup,
+  postFollowUser,
   postJoinGroupByToken,
+  searchUsers,
   type FollowingRow,
   type GroupRow,
+  type UserProfileRow,
 } from "../api/eventflow";
 import { useAuth } from "../auth/AuthContext";
 import { AppText, Button } from "../design/components";
@@ -33,7 +37,7 @@ import type { RootStackParamList } from "../navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "SocialHub">;
 
-type Segment = "groups" | "following";
+type Segment = "groups" | "people" | "following";
 type RoleFilter = "all" | "owner" | "member";
 
 export function SocialHubScreen({ navigation }: Props) {
@@ -100,7 +104,7 @@ export function SocialHubScreen({ navigation }: Props) {
       backgroundColor: c.surface2,
     },
     search: {
-      flexGrow: 1,
+      flex: 1,
       minWidth: 120,
       borderWidth: 1,
       borderColor: c.border,
@@ -126,6 +130,34 @@ export function SocialHubScreen({ navigation }: Props) {
       marginBottom: tokens.spacing[10],
       gap: tokens.spacing[8],
     },
+    userRow: {
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      padding: tokens.spacing[12],
+      borderRadius: tokens.radii.sm,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.surface1,
+      marginBottom: tokens.spacing[10],
+      gap: tokens.spacing[12],
+    },
+    avatar: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: c.surface2,
+    },
+    avatarLetter: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: c.surface2,
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+    },
+    userInfo: { flex: 1, gap: 2 },
+    userName: { fontSize: 16, fontWeight: "700" },
+    followBtn: { paddingHorizontal: 16, paddingVertical: 8 },
     rowMeta: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: tokens.spacing[8], alignItems: "center" as const },
     badge: {
       paddingHorizontal: 8,
@@ -156,14 +188,24 @@ export function SocialHubScreen({ navigation }: Props) {
       paddingVertical: tokens.spacing[10],
       color: c.textPrimary,
     },
+    sectionLabel: {
+      paddingHorizontal: tokens.spacing[16],
+      paddingTop: tokens.spacing[16],
+      paddingBottom: tokens.spacing[8],
+    },
   }));
 
   const [segment, setSegment] = useState<Segment>("groups");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [groupSearch, setGroupSearch] = useState("");
+  const [personSearch, setPersonSearch] = useState("");
   const [followingSearch, setFollowingSearch] = useState("");
   const [groups, setGroups] = useState<GroupRow[]>([]);
   const [following, setFollowing] = useState<FollowingRow[]>([]);
+  const [people, setPeople] = useState<UserProfileRow[]>([]);
+  const [peopleTotal, setPeopleTotal] = useState(0);
+  const [peopleLoading, setPeopleLoading] = useState(false);
+  const [followerSet, setFollowerSet] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -187,6 +229,7 @@ export function SocialHubScreen({ navigation }: Props) {
       const [g, f] = await Promise.all([listGroups(apiBaseUrl, accessToken), listFollowing(apiBaseUrl, accessToken)]);
       setGroups(g);
       setFollowing(f);
+      setFollowerSet(new Set(f.map((r) => r.following_user_id)));
     } catch (e: unknown) {
       if (e instanceof EventflowApiError && e.status === 401) await refreshSession().catch(() => undefined);
       setError(e instanceof Error ? e.message : String(e));
@@ -204,6 +247,20 @@ export function SocialHubScreen({ navigation }: Props) {
       void load();
     }, [load])
   );
+
+  const loadPeople = useCallback(async (q: string) => {
+    if (!accessToken) return;
+    setPeopleLoading(true);
+    try {
+      const res = await searchUsers(apiBaseUrl, accessToken, q);
+      setPeople(res.results);
+      setPeopleTotal(res.total);
+    } catch {
+      // silently fail
+    } finally {
+      setPeopleLoading(false);
+    }
+  }, [apiBaseUrl, accessToken]);
 
   const filteredGroups = useMemo(() => {
     const q = groupSearch.trim().toLowerCase();
@@ -271,6 +328,17 @@ export function SocialHubScreen({ navigation }: Props) {
     }
   };
 
+  const followUser = async (userId: string) => {
+    if (!accessToken) return;
+    try {
+      await postFollowUser(apiBaseUrl, accessToken, userId);
+      setFollowerSet((prev) => new Set(prev).add(userId));
+      await load();
+    } catch (e: unknown) {
+      Alert.alert("Follow failed", e instanceof Error ? e.message : String(e));
+    }
+  };
+
   const unfollowRow = (userId: string) => {
     if (!accessToken) return;
     Alert.alert("Unfollow?", "You can follow again from a listing.", [
@@ -282,6 +350,11 @@ export function SocialHubScreen({ navigation }: Props) {
           void (async () => {
             try {
               await deleteFollowUser(apiBaseUrl, accessToken, userId);
+              setFollowerSet((prev) => {
+                const next = new Set(prev);
+                next.delete(userId);
+                return next;
+              });
               await load();
             } catch (e: unknown) {
               Alert.alert("Unfollow failed", e instanceof Error ? e.message : String(e));
@@ -295,6 +368,53 @@ export function SocialHubScreen({ navigation }: Props) {
     if (!token?.trim()) return;
     await Clipboard.setStringAsync(token.trim());
     Alert.alert("Copied", "Invite token copied to clipboard.");
+  };
+
+  const handlePersonSearch = (text: string) => {
+    setPersonSearch(text);
+    if (text.trim().length >= 2 || text.trim().length === 0) {
+      loadPeople(text);
+    }
+  };
+
+  const renderUserRow = (u: UserProfileRow) => {
+    const isFollowing = followerSet.has(u.user_id);
+    const initial = u.display_name.charAt(0).toUpperCase();
+
+    return (
+      <View key={u.user_id} style={styles.userRow}>
+        {u.avatar_url ? (
+          <Image source={{ uri: u.avatar_url }} style={styles.avatar} />
+        ) : (
+          <View style={styles.avatarLetter}>
+            <AppText style={{ fontSize: 18, fontWeight: "800" }}>{initial}</AppText>
+          </View>
+        )}
+        <View style={styles.userInfo}>
+          <AppText style={styles.userName}>{u.display_name}</AppText>
+          <AppText tone="tertiary" variant="labelSmall">
+            {u.user_id.slice(0, 8)}...
+          </AppText>
+        </View>
+        {isFollowing ? (
+          <Pressable
+            style={({ pressed }) => [pressedOpacityStyle(pressed)]}
+            onPress={() => unfollowRow(u.user_id)}
+          >
+            <AppText tone="secondary" variant="labelSmall" style={{ textDecorationLine: "underline" }}>
+              Unfollow
+            </AppText>
+          </Pressable>
+        ) : (
+          <Button
+            label="Follow"
+            variant="outline"
+            size="md"
+            onPress={() => followUser(u.user_id)}
+          />
+        )}
+      </View>
+    );
   };
 
   if (!accessToken) {
@@ -371,6 +491,20 @@ export function SocialHubScreen({ navigation }: Props) {
           <AppText variant="label">Groups</AppText>
         </Pressable>
         <Pressable
+          accessibilityLabel="People tab"
+          onPress={() => {
+            setSegment("people");
+            if (people.length === 0 && !peopleLoading) loadPeople("");
+          }}
+          style={({ pressed }) => [
+            styles.segment,
+            segment === "people" && styles.segmentActive,
+            pressedOpacityStyle(pressed),
+          ]}
+        >
+          <AppText variant="label">People</AppText>
+        </Pressable>
+        <Pressable
           accessibilityLabel="Following tab"
           onPress={() => setSegment("following")}
           style={({ pressed }) => [
@@ -415,10 +549,22 @@ export function SocialHubScreen({ navigation }: Props) {
             <Button label="Join with token" variant="outline" size="md" onPress={() => setJoinOpen(true)} />
           </View>
         </>
+      ) : segment === "people" ? (
+        <View style={[styles.filterRow, { paddingBottom: 4 }]}>
+          <TextInput
+            style={styles.search}
+            placeholder="Search by name..."
+            placeholderTextColor={colors.textTertiary}
+            value={personSearch}
+            onChangeText={handlePersonSearch}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
       ) : (
         <View style={[styles.filterRow, { paddingBottom: 4 }]}>
           <TextInput
-            style={[styles.search, { flex: 1, minWidth: "100%" as const }]}
+            style={styles.search}
             placeholder="Search by user id"
             placeholderTextColor={colors.textTertiary}
             value={followingSearch}
@@ -465,6 +611,34 @@ export function SocialHubScreen({ navigation }: Props) {
               </View>
             );
           }}
+        />
+      ) : segment === "people" ? (
+        <FlatList<UserProfileRow>
+          style={styles.list}
+          data={people}
+          keyExtractor={(u) => u.user_id}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          ListEmptyComponent={
+            peopleLoading ? (
+              <View style={styles.center}>
+                <ActivityIndicator color={colors.textSecondary} />
+              </View>
+            ) : (
+              <AppText tone="secondary" style={{ textAlign: "center", marginTop: 24 }}>
+                {personSearch.trim()
+                  ? "No users match your search."
+                  : "No public users found. Users need to set a display name to appear here."}
+              </AppText>
+            )
+          }
+          ListHeaderComponent={
+            peopleTotal > 0 ? (
+              <AppText tone="tertiary" variant="labelSmall" style={{ paddingBottom: 8 }}>
+                {peopleTotal} user{peopleTotal !== 1 ? "s" : ""} found
+              </AppText>
+            ) : null
+          }
+          renderItem={({ item: u }) => renderUserRow(u)}
         />
       ) : (
         <FlatList<FollowingRow>
@@ -520,7 +694,7 @@ export function SocialHubScreen({ navigation }: Props) {
               autoCapitalize="none"
             />
             <View style={{ flexDirection: "row", gap: 8 }}>
-              <Button label="Cancel" variant="outline" onPress={() => setJoinOpen(false)} />
+              <Button label="Cancel" variant="outline" onPress={() => setCreateOpen(false)} />
               <Button label="Join" loading={joinBusy} onPress={() => void submitJoin()} />
             </View>
           </Pressable>

@@ -570,7 +570,12 @@ def list_unified_feed(
                 b.whatsapp_e164,
                 v.hero_video_uri,
                 COALESCE(att.attending_count, 0) AS attending_friends_count,
-                COALESCE(att.attending_user_ids, ARRAY[]::uuid[]) AS attending_friend_ids
+                COALESCE(att.attending_user_ids, ARRAY[]::uuid[]) AS attending_friend_ids,
+                (
+                    SELECT MIN(tt.price_minor_units)
+                    FROM ticket_types tt
+                    WHERE tt.community_event_id = e.id AND tt.is_active = true
+                ) AS price_minor_units
             FROM community_events e
             LEFT JOIN business_listing_attachments bl ON bl.community_event_id = e.id
             LEFT JOIN businesses b ON b.id = bl.business_id

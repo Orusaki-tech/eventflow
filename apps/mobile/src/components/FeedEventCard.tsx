@@ -17,9 +17,26 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 type Props = {
   item: UnifiedFeedEvent;
+  onSaveToCalendar?: (item: UnifiedFeedEvent) => void;
 };
 
-export function FeedEventCard({ item }: Props) {
+function formatPrice(minor: number | null): string | null {
+  if (minor === null || minor === undefined) return null;
+  if (minor === 0) return "Free";
+  return `KES ${(minor / 100).toLocaleString()}`;
+}
+
+function countdownLabel(startTime: string): string | null {
+  const diff = new Date(startTime).getTime() - Date.now();
+  if (diff < 0) return "Happening now";
+  const hours = diff / 3600000;
+  if (hours < 1) return "Starting soon";
+  if (hours < 24) return `In ${Math.round(hours)}h`;
+  if (hours < 48) return "Tomorrow";
+  return null;
+}
+
+export function FeedEventCard({ item, onSaveToCalendar }: Props) {
   const { colors } = useTheme();
 
   const attendingText =
@@ -34,22 +51,45 @@ export function FeedEventCard({ item }: Props) {
     day: "numeric",
   });
 
+  const priceLabel = formatPrice(item.price_minor_units);
+  const countLabel = countdownLabel(item.start_time);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
-      {/* Background poster */}
       {item.poster_image_uri ? (
         <Image source={{ uri: item.poster_image_uri }} style={styles.poster} resizeMode="cover" />
       ) : (
         <View style={[styles.poster, { backgroundColor: colors.surface1 }]} />
       )}
 
-      {/* Overlay gradient effect via semi-transparent bottom */}
       <View style={styles.overlay} />
 
-      {/* Content */}
+      <View style={styles.topRight}>
+        {priceLabel ? (
+          <View style={[styles.pill, priceLabel === "Free" ? styles.freePill : styles.pricePill]}>
+            <AppText style={styles.pillText}>{priceLabel}</AppText>
+          </View>
+        ) : null}
+        {onSaveToCalendar ? (
+          <Pressable
+            style={({ pressed }) => [styles.saveBtn, pressedOpacityStyle(pressed)]}
+            onPress={() => onSaveToCalendar(item)}
+          >
+            <AppText style={styles.saveBtnText}>+ Save</AppText>
+          </Pressable>
+        ) : null}
+      </View>
+
       <View style={styles.content}>
-        <View style={styles.badge}>
-          <AppText style={styles.badgeText}>{dateStr}</AppText>
+        <View style={styles.badgeRow}>
+          <View style={styles.badge}>
+            <AppText style={styles.badgeText}>{dateStr}</AppText>
+          </View>
+          {countLabel ? (
+            <View style={styles.countdownBadge}>
+              <AppText style={styles.countdownText}>{countLabel}</AppText>
+            </View>
+          ) : null}
         </View>
 
         <AppText style={styles.title} numberOfLines={2}>
@@ -118,12 +158,53 @@ const styles = StyleSheet.create({
     height: "50%",
     backgroundColor: "rgba(0,0,0,0.4)",
   },
+  topRight: {
+    position: "absolute",
+    top: 60,
+    right: 16,
+    gap: 8,
+    alignItems: "flex-end",
+  },
+  pill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  pricePill: {
+    backgroundColor: "#4CAF50",
+  },
+  freePill: {
+    backgroundColor: "#FF9800",
+  },
+  pillText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  saveBtn: {
+    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  saveBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
   content: {
     position: "absolute",
     bottom: 120,
     left: 16,
     right: 16,
     gap: 8,
+  },
+  badgeRow: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
   },
   badge: {
     alignSelf: "flex-start",
@@ -136,6 +217,18 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 13,
     fontWeight: "600",
+  },
+  countdownBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#FF6B35",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  countdownText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
   },
   title: {
     fontSize: 24,

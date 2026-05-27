@@ -5,8 +5,10 @@ import { useFocusEffect } from "@react-navigation/native";
 import {
   EventflowApiError,
   getBudgetSummary,
+  getMyProfile,
   getUserPreferences,
   patchUserPreferences,
+  upsertMyProfile,
   type BudgetSummary,
 } from "../api/eventflow";
 import { useAuth } from "../auth/AuthContext";
@@ -73,6 +75,9 @@ export function ProfileScreen({ navigation }: Props) {
   const [year, setYear] = useState(anchor.getFullYear());
   const [month, setMonth] = useState(anchor.getMonth() + 1);
 
+  const [displayName, setDisplayName] = useState("");
+  const [isPublic, setIsPublic] = useState(true);
+  const [savingProfile, setSavingProfile] = useState(false);
   const [budgetDollarsInput, setBudgetDollarsInput] = useState("");
   const [summary, setSummary] = useState<BudgetSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -90,19 +95,24 @@ export function ProfileScreen({ navigation }: Props) {
       void (async () => {
         setLoading(true);
         try {
-          const [prefs, sum] = await Promise.all([
+          const [prefs, sum, profile] = await Promise.all([
             getUserPreferences(apiBaseUrl, accessToken),
             getBudgetSummary(apiBaseUrl, accessToken, {
               year,
               month,
               tzOffsetMinutes: tzOffsetMinutes,
             }),
+            getMyProfile(apiBaseUrl, accessToken).catch(() => null),
           ]);
           if (cancelled) return;
           if (prefs.monthly_budget_minor_units != null) {
             setBudgetDollarsInput(String(prefs.monthly_budget_minor_units / 100));
           } else {
             setBudgetDollarsInput("");
+          }
+          if (profile) {
+            setDisplayName(profile.display_name === "User" ? "" : profile.display_name);
+            setIsPublic(profile.is_public);
           }
           setSummary(sum);
         } catch (e: unknown) {
@@ -133,6 +143,22 @@ export function ProfileScreen({ navigation }: Props) {
         },
       },
     ]);
+  };
+
+  const saveProfile = async () => {
+    const name = displayName.trim();
+    if (!name) {
+      Alert.alert("Display name required", "Enter your display name so others can find you.");
+      return;
+    }
+    setSavingProfile(true);
+    try {
+      await upsertMyProfile(apiBaseUrl, accessToken, { display_name: name, is_public: isPublic });
+    } catch (e: unknown) {
+      Alert.alert("Save failed", e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingProfile(false);
+    }
   };
 
   const saveBudget = async () => {
@@ -175,6 +201,30 @@ export function ProfileScreen({ navigation }: Props) {
         <AppText tone="secondary" style={styles.email}>
           {email ?? "Signed in"}
         </AppText>
+      </Card>
+
+      <Card style={styles.card}>
+        <AppText variant="title">Profile</AppText>
+        <AppText variant="labelSmall" tone="tertiary" style={styles.hint}>
+          Your display name lets others find you in search.
+        </AppText>
+        <TextInput
+          style={styles.input}
+          value={displayName}
+          onChangeText={setDisplayName}
+          placeholder="Your display name"
+          placeholderTextColor={colors.textTertiary}
+          autoCapitalize="words"
+        />
+        <Pressable
+          onPress={() => setIsPublic((p) => !p)}
+          style={({ pressed }) => [pressedOpacityStyle(pressed)]}
+        >
+          <AppText variant="labelSmall" style={{ color: isPublic ? "#4CAF50" : colors.textTertiary }}>
+            {isPublic ? "Public profile (visible to everyone)" : "Private profile (hidden from search)"}
+          </AppText>
+        </Pressable>
+        <Button label={savingProfile ? "Saving…" : "Save profile"} variant="outline" loading={savingProfile} onPress={() => void saveProfile()} fullWidth />
       </Card>
 
       <Card style={styles.card}>

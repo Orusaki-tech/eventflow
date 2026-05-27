@@ -1,15 +1,19 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect, useRoute } from "@react-navigation/native";
 import React, { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, View } from "react-native";
+import { ActivityIndicator, FlatList, Linking, Pressable, View } from "react-native";
 import {
   listToday,
   listUpcoming,
+  getSavedCommunityEvents,
+  startGoogleCalendarOAuth,
   type TodayEventRow,
   type UpcomingEventRow,
+  type UnifiedFeedEvent,
 } from "../api/eventflow";
 import { useAuth } from "../auth/AuthContext";
 import { UpcomingEventCard } from "../components/UpcomingEventCard";
+import { EventCardCompact, COMPACT_CARD_WIDTH } from "../components/EventCardCompact";
 import { dedupeByEventFingerprint } from "../lib/dedupeEvents";
 import type { CalendarStackParamList } from "../navigation/types";
 import { navigationRef } from "../navigation/navigationRef";
@@ -48,6 +52,17 @@ export function CalendarScreen({ navigation }: Props) {
     center: { flex: 1, justifyContent: "center" as const, alignItems: "center" as const },
     list: { padding: tokens.spacing[16], backgroundColor: c.bg, flexGrow: 1, gap: tokens.spacing[12] },
     empty: { textAlign: "center" as const, marginTop: 48, paddingHorizontal: 24 },
+    connectBtn: {
+      marginHorizontal: tokens.spacing[16],
+      paddingVertical: tokens.spacing[12],
+      borderRadius: tokens.radii.sm,
+      borderWidth: 1,
+      borderColor: c.border,
+      alignItems: "center" as const,
+      backgroundColor: c.surface1,
+    },
+    savedSection: { gap: tokens.spacing[8], paddingHorizontal: tokens.spacing[16] },
+    savedRow: { flexDirection: "row" as const, gap: tokens.spacing[8] },
   }));
   const route = useRoute();
   const params = route.params as { segment?: Segment } | undefined;
@@ -67,6 +82,7 @@ export function CalendarScreen({ navigation }: Props) {
   const { accessToken, apiBaseUrl, refreshSession } = useAuth();
   const [todayRows, setTodayRows] = useState<TodayEventRow[]>([]);
   const [upcomingRows, setUpcomingRows] = useState<UpcomingEventRow[]>([]);
+  const [savedEvents, setSavedEvents] = useState<UnifiedFeedEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
   const tzOffsetMinutes = useMemo(() => -new Date().getTimezoneOffset(), []);
@@ -77,18 +93,21 @@ export function CalendarScreen({ navigation }: Props) {
       void (async () => {
         setLoading(true);
         try {
-          const [t, u] = await Promise.all([
+          const [t, u, s] = await Promise.all([
             listToday(apiBaseUrl, accessToken, tzOffsetMinutes),
             listUpcoming(apiBaseUrl, accessToken),
+            getSavedCommunityEvents(apiBaseUrl, accessToken).catch(() => []),
           ]);
           if (!cancelled) {
             setTodayRows(t);
             setUpcomingRows(u);
+            setSavedEvents(s);
           }
         } catch (e: unknown) {
           if (!cancelled) {
             setTodayRows([]);
             setUpcomingRows([]);
+            setSavedEvents([]);
           }
         } finally {
           if (!cancelled) setLoading(false);
@@ -108,8 +127,47 @@ export function CalendarScreen({ navigation }: Props) {
     return dedupeByEventFingerprint<UpcomingEventRow>(upcomingRows);
   }, [upcomingRows]);
 
+  const handleConnectGoogleCalendar = async () => {
+    try {
+      const res = await startGoogleCalendarOAuth(apiBaseUrl, accessToken);
+      if (res.url) {
+        const ok = await Linking.canOpenURL(res.url);
+        if (ok) await Linking.openURL(res.url);
+      }
+    } catch (e: unknown) {
+      console.error("Google Calendar connect failed", e);
+    }
+  };
+
+  const renderSavedEvents = () => {
+    if (savedEvents.length === 0) return null;
+    return (
+      <View style={styles.savedSection}>
+        <AppText variant="label">Saved Events</AppText>
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={savedEvents}
+          keyExtractor={(item) => item.item_id}
+          renderItem={({ item }) => (
+            <View style={{ width: COMPACT_CARD_WIDTH, marginRight: tokens.spacing[8] }}>
+              <EventCardCompact item={item} />
+            </View>
+          )}
+        />
+      </View>
+    );
+  };
+
   return (
     <View style={styles.root}>
+      <Pressable
+        style={({ pressed }) => [styles.connectBtn, pressedOpacityStyle(pressed)]}
+        onPress={handleConnectGoogleCalendar}
+      >
+        <AppText tone="secondary">Connect Google Calendar</AppText>
+      </Pressable>
+
       <View style={styles.segmentRow}>
         <Pressable
           accessibilityLabel="Today tab"
@@ -148,6 +206,7 @@ export function CalendarScreen({ navigation }: Props) {
           contentContainerStyle={styles.list}
           data={uniqueTodayRows}
           keyExtractor={(item) => item.id}
+          ListHeaderComponent={renderSavedEvents}
           ListEmptyComponent={
             <AppText tone="tertiary" style={styles.empty}>
               No events for today.
@@ -184,6 +243,7 @@ export function CalendarScreen({ navigation }: Props) {
           contentContainerStyle={styles.list}
           data={uniqueUpcomingRows}
           keyExtractor={(item) => item.id}
+          ListHeaderComponent={renderSavedEvents}
           ListEmptyComponent={
             <AppText tone="tertiary" style={styles.empty}>
               No upcoming events yet. Import a link from the Capture tab.

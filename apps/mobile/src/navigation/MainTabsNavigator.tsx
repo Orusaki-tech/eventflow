@@ -8,6 +8,7 @@ import { CalendarScreen } from "../screens/CalendarScreen";
 import { CaptureScreen } from "../screens/CaptureScreen";
 import { DiscoverHomeScreen } from "../screens/DiscoverHomeScreen";
 import { HomeScreen } from "../screens/HomeScreen";
+import { MyTicketsScreen } from "../screens/MyTicketsScreen";
 import { ProfileScreen } from "../screens/ProfileScreen";
 import { useTheme } from "../design/theme";
 import type {
@@ -17,12 +18,14 @@ import type {
   InboxStackParamList,
   MainTabParamList,
   ProfileStackParamList,
+  TicketsStackParamList,
 } from "./types";
 
 const InboxStack = createNativeStackNavigator<InboxStackParamList>();
 const CalendarStack = createNativeStackNavigator<CalendarStackParamList>();
 const CaptureStack = createNativeStackNavigator<CaptureStackParamList>();
 const DiscoverStack = createNativeStackNavigator<DiscoverStackParamList>();
+const TicketsStack = createNativeStackNavigator<TicketsStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -76,6 +79,15 @@ function DiscoverStackNavigator() {
   );
 }
 
+function TicketsStackNavigator() {
+  const stackScreenOptions = useStackScreenOptions();
+  return (
+    <TicketsStack.Navigator screenOptions={stackScreenOptions}>
+      <TicketsStack.Screen name="TicketsHome" component={MyTicketsScreen} options={{ title: "My Tickets" }} />
+    </TicketsStack.Navigator>
+  );
+}
+
 function ProfileStackNavigator() {
   const stackScreenOptions = useStackScreenOptions();
   return (
@@ -118,6 +130,14 @@ export function MainTabsNavigator() {
         options={{
           title: "Calendar",
           tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" color={color} size={size} />,
+        }}
+      />
+      <Tab.Screen
+        name="Tickets"
+        component={TicketsStackNavigator}
+        options={{
+          title: "Tickets",
+          tabBarIcon: ({ color, size }) => <Ionicons name="ticket-outline" color={color} size={size} />,
         }}
       />
       <Tab.Screen

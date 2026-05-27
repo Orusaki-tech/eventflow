@@ -161,6 +161,20 @@ class GoogleCalendarClient(AbstractCalendarClient):
         return cal.to_ical().decode("utf-8")
 
 
+def build_ics_for_community_event(*, event_id: str, title: str, start_time: datetime, venue: str) -> str:
+    cal = Calendar()
+    cal.add("prodid", "-//EventFlow//EN")
+    cal.add("version", "2.0")
+    ical_evt = ICalEvent()
+    ical_evt.add("uid", event_id)
+    ical_evt.add("summary", title)
+    ical_evt.add("location", venue)
+    ical_evt.add("dtstart", start_time)
+    ical_evt.add("dtstamp", datetime.now(timezone.utc))
+    cal.add_component(ical_evt)
+    return cal.to_ical().decode("utf-8")
+
+
 class NoOpCalendarClient(AbstractCalendarClient):
     def upsert_event(
         self,

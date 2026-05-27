@@ -16,6 +16,9 @@ from eventflow.entrypoints.api.schemas import (
     UserLocationUpsertRequest,
     UserPreferencesPatchRequest,
     UserPreferencesResponse,
+    UserProfileResponse,
+    UserProfileUpsertRequest,
+    UserProfileSearchResponse,
 )
 from eventflow.entrypoints.dependencies import get_current_user_id, get_session, get_uow
 from eventflow.service_layer import budget_views
@@ -196,4 +199,99 @@ async def unregister_push_token(
         uow.device_push_tokens.disable(token_id=token_id, disabled_at=now)
         uow.commit()
     return None
+
+
+@router.get("/users/me/profile", status_code=status.HTTP_200_OK, response_model=UserProfileResponse)
+async def get_my_profile(
+    user_id=Depends(get_current_user_id),
+    session=Depends(get_session),
+):
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
+    row = session.execute(
+        text("SELECT display_name, avatar_url, is_public FROM user_profiles WHERE user_id = :uid"),
+        {"uid": str(user_id)},
+    ).first()
+    if row is None:
+        return UserProfileResponse(user_id=user_id, display_name="User")
+    return UserProfileResponse(user_id=user_id, display_name=row[0], avatar_url=row[1], is_public=row[2])
+
+
+@router.put("/users/me/profile", status_code=status.HTTP_200_OK, response_model=UserProfileResponse)
+async def upsert_my_profile(
+    body: UserProfileUpsertRequest,
+    user_id=Depends(get_current_user_id),
+    session=Depends(get_session),
+):
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
+    now = datetime.now(timezone.utc)
+    session.execute(
+        text("""
+            INSERT INTO user_profiles (user_id, display_name, avatar_url, is_public, created_at, updated_at)
+            VALUES (:uid, :name, :avatar, COALESCE(:public, true), :now, :now)
+            ON CONFLICT (user_id) DO UPDATE SET
+                display_name = EXCLUDED.display_name,
+                avatar_url = EXCLUDED.avatar_url,
+                is_public = COALESCE(EXCLUDED.is_public, user_profiles.is_public),
+                updated_at = EXCLUDED.updated_at
+        """),
+        {"uid": str(user_id), "name": body.display_name, "avatar": body.avatar_url, "public": body.is_public, "now": now},
+    )
+    session.commit()
+    row = session.execute(
+        text("SELECT display_name, avatar_url, is_public FROM user_profiles WHERE user_id = :uid"),
+        {"uid": str(user_id)},
+    ).first()
+    return UserProfileResponse(user_id=user_id, display_name=row[0], avatar_url=row[1], is_public=row[2])
+
+
+@router.get("/users/search", status_code=status.HTTP_200_OK, response_model=UserProfileSearchResponse)
+async def search_users(
+    q: str = Query(default="", min_length=0, max_length=128),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    session=Depends(get_session),
+):
+    if session is None:
+        return UserProfileSearchResponse(results=[], total=0)
+    query = q.strip()
+    if not query:
+        rows = session.execute(
+            text("SELECT user_id, display_name, avatar_url FROM user_profiles WHERE is_public = true ORDER BY display_name LIMIT :lim OFFSET :off"),
+            {"lim": limit, "off": offset},
+        ).all()
+        total = session.execute(
+            text("SELECT COUNT(*) FROM user_profiles WHERE is_public = true")
+        ).scalar() or 0
+    else:
+        pattern = f"%{query}%"
+        rows = session.execute(
+            text("SELECT user_id, display_name, avatar_url FROM user_profiles WHERE is_public = true AND display_name ILIKE :q ORDER BY display_name LIMIT :lim OFFSET :off"),
+            {"q": pattern, "lim": limit, "off": offset},
+        ).all()
+        total = session.execute(
+            text("SELECT COUNT(*) FROM user_profiles WHERE is_public = true AND display_name ILIKE :q"),
+            {"q": pattern},
+        ).scalar() or 0
+    results = [UserProfileResponse(user_id=r[0], display_name=r[1], avatar_url=r[2]) for r in rows]
+    return UserProfileSearchResponse(results=results, total=total)
+
+
+@router.get("/users/{user_id}/profile", status_code=status.HTTP_200_OK, response_model=UserProfileResponse)
+async def get_user_profile(
+    user_id: UUID,
+    session=Depends(get_session),
+):
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
+    row = session.execute(
+        text("SELECT display_name, avatar_url, is_public FROM user_profiles WHERE user_id = :uid"),
+        {"uid": str(user_id)},
+    ).first()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if not row[2]:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return UserProfileResponse(user_id=user_id, display_name=row[0], avatar_url=row[1], is_public=row[2])
 

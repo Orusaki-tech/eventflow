@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import PlainTextResponse
 from sqlalchemy import text
 
 from eventflow.adapters.embeddings_client import DeterministicEmbeddingsClient
@@ -217,4 +219,97 @@ async def discovery_business_profile(
         listing_count=len(listing_rows),
         listings=listing_rows,
     )
+
+
+@router.post("/discovery/community-events/{community_event_id}/save-to-calendar", status_code=status.HTTP_201_CREATED)
+async def save_community_event_to_calendar(
+    community_event_id: UUID,
+    user_id=Depends(get_current_user_id),
+    session=Depends(get_session),
+):
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
+    ce = session.execute(
+        text("SELECT id, title, start_time, venue, description FROM community_events WHERE id = :id LIMIT 1"),
+        {"id": str(community_event_id)},
+    ).first()
+    if ce is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    import uuid as _uuid
+    event_id = _uuid.uuid4()
+    session.execute(
+        text("""
+            INSERT INTO scheduled_events (id, user_id, title, start_time, venue, raw_venue_text, description_public, visibility)
+            VALUES (:id, :uid, :title, :st, :venue, :venue, :desc, 'private')
+        """),
+        {"id": str(event_id), "uid": str(user_id), "title": ce.title, "st": ce.start_time, "venue": ce.venue, "desc": ce.description or ""},
+    )
+    session.commit()
+    return {"scheduled_event_id": str(event_id), "ok": True}
+
+
+@router.get("/discovery/community-events/{community_event_id}/ics", response_class=PlainTextResponse)
+async def community_event_ics(
+    community_event_id: UUID,
+    session=Depends(get_session),
+):
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
+    ce = session.execute(
+        text("SELECT id, title, start_time, venue, description FROM community_events WHERE id = :id LIMIT 1"),
+        {"id": str(community_event_id)},
+    ).first()
+    if ce is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    from eventflow.adapters.calendar_client import build_ics_for_community_event
+    ics = build_ics_for_community_event(event_id=str(ce.id), title=ce.title, start_time=ce.start_time, venue=ce.venue)
+    return PlainTextResponse(content=ics, media_type="text/calendar",
+        headers={"Content-Disposition": f"attachment; filename=\"event-{ce.id}.ics\""})
+
+
+@router.post("/discovery/community-events/{community_event_id}/rsvp", status_code=status.HTTP_200_OK)
+async def rsvp_community_event(
+    community_event_id: UUID,
+    body: dict,
+    user_id=Depends(get_current_user_id),
+    session=Depends(get_session),
+):
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
+    status_val = body.get("status", "going")
+    if status_val not in ("going", "maybe", "not_going"):
+        raise HTTPException(status_code=400, detail="Invalid RSVP status")
+    existing = session.execute(
+        text("SELECT id FROM listing_analytics_events WHERE community_event_id = :ce AND user_id = :uid AND metric_type = 'rsvp' LIMIT 1"),
+        {"ce": str(community_event_id), "uid": str(user_id)},
+    ).first()
+    meta = {"rsvp_status": status_val}
+    if existing:
+        session.execute(
+            text("UPDATE listing_analytics_events SET meta = :meta WHERE id = :id"),
+            {"meta": meta, "id": existing[0]},
+        )
+    else:
+        session.execute(
+            text("INSERT INTO listing_analytics_events (id, community_event_id, user_id, metric_type, meta, created_at) VALUES (gen_random_uuid(), :ce, :uid, 'rsvp', :meta, NOW())"),
+            {"ce": str(community_event_id), "uid": str(user_id), "meta": meta},
+        )
+    session.commit()
+    return {"status": status_val, "ok": True}
+
+
+@router.get("/discovery/community-events/{community_event_id}/rsvp", status_code=status.HTTP_200_OK)
+async def get_rsvp_status(
+    community_event_id: UUID,
+    user_id=Depends(get_current_user_id),
+    session=Depends(get_session),
+):
+    if session is None:
+        return {"status": None}
+    row = session.execute(
+        text("SELECT meta FROM listing_analytics_events WHERE community_event_id = :ce AND user_id = :uid AND metric_type = 'rsvp' LIMIT 1"),
+        {"ce": str(community_event_id), "uid": str(user_id)},
+    ).first()
+    status_val = row["meta"]["rsvp_status"] if row and row.meta else None
+    return {"status": status_val}
 

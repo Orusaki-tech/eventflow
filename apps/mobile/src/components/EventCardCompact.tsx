@@ -13,6 +13,21 @@ type Props = {
   item: UnifiedFeedEvent;
 };
 
+function formatPrice(minor: number | null): string | null {
+  if (minor === null || minor === undefined) return null;
+  if (minor === 0) return "Free";
+  return `KES ${(minor / 100).toLocaleString()}`;
+}
+
+function countdownLabel(startTime: string): string | null {
+  const diff = new Date(startTime).getTime() - Date.now();
+  if (diff < 0) return "Now";
+  const hours = diff / 3600000;
+  if (hours < 24) return `In ${Math.round(hours)}h`;
+  if (hours < 48) return "Tomorrow";
+  return null;
+}
+
 export function EventCardCompact({ item }: Props) {
   const { colors } = useTheme();
 
@@ -24,6 +39,9 @@ export function EventCardCompact({ item }: Props) {
     item.attending_friends_count > 0
       ? `${item.attending_friends_count} going`
       : null;
+
+  const priceLabel = formatPrice(item.price_minor_units);
+  const countLabel = countdownLabel(item.start_time);
 
   return (
     <Pressable
@@ -51,6 +69,16 @@ export function EventCardCompact({ item }: Props) {
           <AppText style={styles.dateMonth}>{month}</AppText>
           <AppText style={styles.dateDay}>{day}</AppText>
         </View>
+        {priceLabel ? (
+          <View style={[styles.priceBadge, priceLabel === "Free" ? styles.freeBadge : undefined]}>
+            <AppText style={styles.priceText}>{priceLabel}</AppText>
+          </View>
+        ) : null}
+        {countLabel ? (
+          <View style={styles.countdownBadge}>
+            <AppText style={styles.countdownText}>{countLabel}</AppText>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.body}>
@@ -104,6 +132,37 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "900",
+  },
+  priceBadge: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    backgroundColor: "#4CAF50",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  freeBadge: {
+    backgroundColor: "#FF9800",
+  },
+  priceText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  countdownBadge: {
+    position: "absolute",
+    bottom: 8,
+    right: 8,
+    backgroundColor: "#FF6B35",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  countdownText: {
+    color: "#fff",
+    fontSize: 9,
+    fontWeight: "700",
   },
   body: {
     paddingTop: 8,

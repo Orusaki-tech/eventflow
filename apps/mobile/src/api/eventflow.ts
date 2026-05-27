@@ -164,6 +164,18 @@ export type FollowingRow = {
   created_at: string;
 };
 
+export type UserProfileRow = {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  is_public: boolean;
+};
+
+export type UserProfileSearchResponse = {
+  results: UserProfileRow[];
+  total: number;
+};
+
 async function readProblemDetail(res: Response): Promise<string> {
   const ct = res.headers.get("content-type") ?? "";
   if (ct.includes("json")) {
@@ -811,6 +823,51 @@ export async function listFollowing(baseUrl: string, token: string | null): Prom
   return request<FollowingRow[]>(baseUrl, "/api/v1/follows", token, { method: "GET" });
 }
 
+export async function searchUsers(
+  baseUrl: string,
+  token: string | null,
+  q: string,
+  opts?: { limit?: number; offset?: number }
+): Promise<UserProfileSearchResponse> {
+  const lim = opts?.limit ?? 20;
+  const off = opts?.offset ?? 0;
+  const encoded = encodeURIComponent(q.trim());
+  return request<UserProfileSearchResponse>(
+    baseUrl,
+    `/api/v1/users/search?q=${encoded}&limit=${lim}&offset=${off}`,
+    token,
+    { method: "GET" }
+  );
+}
+
+export async function getMyProfile(
+  baseUrl: string,
+  token: string | null
+): Promise<UserProfileRow> {
+  return request<UserProfileRow>(baseUrl, "/api/v1/users/me/profile", token, { method: "GET" });
+}
+
+export async function upsertMyProfile(
+  baseUrl: string,
+  token: string | null,
+  body: { display_name: string; avatar_url?: string | null; is_public?: boolean }
+): Promise<UserProfileRow> {
+  return request<UserProfileRow>(baseUrl, "/api/v1/users/me/profile", token, {
+    method: "PUT",
+    json: body,
+  });
+}
+
+export async function getUserProfile(
+  baseUrl: string,
+  token: string | null,
+  userId: string
+): Promise<UserProfileRow> {
+  return request<UserProfileRow>(baseUrl, `/api/v1/users/${userId}/profile`, token, {
+    method: "GET",
+  });
+}
+
 export async function postCreateGroup(
   baseUrl: string,
   token: string | null,
@@ -1144,6 +1201,7 @@ export type UnifiedFeedEvent = {
   hero_video_uri: string | null;
   attending_friends_count: number;
   attending_friend_ids: string[];
+  price_minor_units: number | null;
 };
 
 export type UnifiedFeedAffiliate = {
@@ -1269,4 +1327,101 @@ export async function createClaim(
 
 export async function listMyClaims(baseUrl: string, token: string | null): Promise<ClaimResponse[]> {
   return request<ClaimResponse[]>(baseUrl, "/api/v1/tickets/claims", token, { method: "GET" });
+}
+
+// ─── COMMUNITY EVENT SAVE / ICS / RSVP ─────────────────────────────
+
+export async function saveCommunityEventToCalendar(
+  baseUrl: string,
+  token: string | null,
+  communityEventId: string
+): Promise<{ scheduled_event_id: string; ok: boolean }> {
+  return request<{ scheduled_event_id: string; ok: boolean }>(
+    baseUrl,
+    `/api/v1/discovery/community-events/${encodeURIComponent(communityEventId)}/save-to-calendar`,
+    token,
+    { method: "POST" }
+  );
+}
+
+export async function getSavedCommunityEvents(
+  baseUrl: string,
+  token: string | null
+): Promise<UnifiedFeedEvent[]> {
+  return request<UnifiedFeedEvent[]>(
+    baseUrl,
+    "/api/v1/events/upcoming?saved_only=true&days_ahead=365",
+    token,
+    { method: "GET" }
+  );
+}
+
+export async function fetchCommunityEventIcs(
+  baseUrl: string,
+  token: string | null,
+  communityEventId: string
+): Promise<string> {
+  const res = await fetch(
+    `${baseUrl.replace(/\/$/, "")}/api/v1/discovery/community-events/${encodeURIComponent(communityEventId)}/ics`,
+    {
+      headers: {
+        Accept: "text/calendar",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    }
+  );
+  if (!res.ok) throw new EventflowApiError(res.status, await readProblemDetail(res));
+  return res.text();
+}
+
+export async function postRsvp(
+  baseUrl: string,
+  token: string | null,
+  communityEventId: string,
+  status: "going" | "maybe" | "not_going"
+): Promise<{ status: string; ok: boolean }> {
+  return request<{ status: string; ok: boolean }>(
+    baseUrl,
+    `/api/v1/discovery/community-events/${encodeURIComponent(communityEventId)}/rsvp`,
+    token,
+    { method: "POST", json: { status } }
+  );
+}
+
+export async function getRsvpStatus(
+  baseUrl: string,
+  token: string | null,
+  communityEventId: string
+): Promise<{ status: string | null }> {
+  return request<{ status: string | null }>(
+    baseUrl,
+    `/api/v1/discovery/community-events/${encodeURIComponent(communityEventId)}/rsvp`,
+    token,
+    { method: "GET" }
+  );
+}
+
+export async function getBusinessEvents(
+  baseUrl: string,
+  token: string | null,
+  businessId: string
+): Promise<BusinessProfileListingRow[]> {
+  return request<BusinessProfileListingRow[]>(
+    baseUrl,
+    `/api/v1/discovery/business/${encodeURIComponent(businessId)}/listings`,
+    token,
+    { method: "GET" }
+  );
+}
+
+export async function startGoogleCalendarOAuth(
+  baseUrl: string,
+  token: string | null
+): Promise<{ url: string }> {
+  return request<{ url: string }>(
+    baseUrl,
+    "/api/v1/calendar/google/auth",
+    token,
+    { method: "GET" }
+  );
 }

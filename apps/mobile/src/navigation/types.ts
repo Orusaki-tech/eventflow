@@ -20,6 +20,11 @@ export type DiscoverStackParamList = {
   DiscoverHome: undefined;
 };
 
+/** Stack inside Tickets tab */
+export type TicketsStackParamList = {
+  TicketsHome: undefined;
+};
+
 /** Stack inside Profile tab */
 export type ProfileStackParamList = {
   ProfileHome: undefined;
@@ -30,6 +35,7 @@ export type ProfileStackParamList = {
 export type MainTabParamList = {
   Inbox: NavigatorScreenParams<InboxStackParamList>;
   Calendar: NavigatorScreenParams<CalendarStackParamList>;
+  Tickets: NavigatorScreenParams<TicketsStackParamList>;
   Capture: NavigatorScreenParams<CaptureStackParamList>;
   Discover: NavigatorScreenParams<DiscoverStackParamList>;
   Profile: NavigatorScreenParams<ProfileStackParamList>;
@@ -73,4 +79,5 @@ export type RootStackParamList = {
   BusinessProfileView: { businessId: string; businessName?: string };
   SocialHub: undefined;
   Subscription: undefined;
+  MyTickets: undefined;
 };
