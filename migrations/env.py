@@ -74,11 +74,74 @@ def run_migrations_offline() -> None:
 
     """
     url = config.get_main_option("sqlalchemy.url")
+    from sqlalchemy.schema import Table, ForeignKeyConstraint
+
+    def include_object_offline(object, name, type_, reflected, compare_to):
+        ignored_tables = {
+            "auth_users", "businesses", "auth.users", "auth.refresh_tokens",
+            "business_payout_settings", "user_profiles", "products", "referral_links",
+            "group_rsvps", "device_calendar_links", "tickets", "apscheduler_jobs",
+            "admin_console_allowlist", "user_points", "user_preferences", "feed_videos",
+            "affiliate_earnings", "feed_watch_log", "shared_link_listings", "claims",
+            "orders", "order_items", "platform_settings", "listing_analytics_events",
+            "ticket_types", "community_event_share_aliases", "business_listing_attachments",
+            "follows",
+            "event_videos", # Added event_videos
+            "user_subscriptions", # Added user_subscriptions
+            "platform_settings", # Added platform_settings
+        }
+        if type_ == "table" and name in ignored_tables:
+            return False
+        
+        # Also ignore specific columns if they are not part of the managed models
+        if type_ == "column" and object.table.name == "business_follows" and object.name == "created_at":
+            return False
+        if type_ == "column" and object.table.name == "community_events" and object.name == "has_ticketing":
+            return False
+        if type_ == "column" and object.table.name == "community_events" and object.name == "visibility":
+            return False
+        if type_ == "column" and object.table.name == "community_events" and object.name == "has_products":
+            return False
+        
+        if type_ == "index" and object.name == "ix_community_event_embeddings_hnsw":
+            return False
+        if type_ == "index" and object.name == "ix_community_events_visibility":
+            return False
+        if type_ == "index" and object.name == "ix_groups_invite_token":
+            return False
+        
+        if type_ == "foreign_key_constraint" and isinstance(object, ForeignKeyConstraint):
+            if object.referred_table.name in ignored_tables:
+                return False
+            for col in object.columns:
+                if isinstance(col.table, Table) and col.table.name in ignored_tables:
+                    return False
+        if type_ == "column" and name == "has_ticketing" and object.table.name == "community_events":
+            return False
+        if type_ == "column" and name == "visibility" and object.table.name == "community_events":
+            return False
+        if type_ == "column" and name == "has_products" and object.table.name == "community_events":
+            return False
+        if type_ == "index" and object.name == "ix_community_event_embeddings_hnsw":
+            return False
+        if type_ == "index" and object.name == "ix_community_events_visibility":
+            return False
+        if type_ == "index" and object.name == "ix_groups_invite_token":
+            return False
+        
+        if type_ == "foreign_key_constraint" and isinstance(object, ForeignKeyConstraint):
+            if object.referred_table.name in ignored_tables:
+                return False
+            for col in object.columns:
+                if isinstance(col.table, Table) and col.table.name in ignored_tables:
+                    return False
+        return True
     context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_object=include_object_offline
     )
 
     with context.begin_transaction():
@@ -97,12 +160,66 @@ def run_migrations_online() -> None:
         raise RuntimeError("sqlalchemy.url is not configured (set DB_URL in .env)")
     url = _normalize_db_url(url.replace("%%", "%"))
     from sqlalchemy import create_engine
+    from sqlalchemy.schema import Table, ForeignKeyConstraint
 
-    connectable = create_engine(url, poolclass=pool.NullPool)
+    def include_object(object, name, type_, reflected, compare_to):
+        # Ignore tables that are not managed by our application's metadata
+        # (e.g., Supabase auth tables, or tables managed by other services)
+        # (e.g., Supabase auth tables, or tables managed by other services)
+        # It is crucial to maintain this list to avoid Alembic trying to drop tables it doesn't own.
+        ignored_tables = {
+            "auth_users", "businesses", "auth.users", "auth.refresh_tokens",
+            "business_payout_settings", "user_profiles", "products", "referral_links",
+            "group_rsvps", "device_calendar_links", "tickets", "apscheduler_jobs",
+            "admin_console_allowlist", "user_points", "user_preferences", "feed_videos",
+            "affiliate_earnings", "feed_watch_log", "shared_link_listings", "claims",
+            "orders", "order_items", "platform_settings", "listing_analytics_events",
+            "ticket_types", "community_event_share_aliases", "business_listing_attachments",
+            "follows",
+            "event_videos",
+            "user_subscriptions",
+            "platform_settings",
+            "ticket_types", "orders", "order_items", "tickets", "products",
+            "affiliate_earnings", "claims", "feed_videos", "user_points", "user_preferences",
+            "group_rsvps", "device_calendar_links", "admin_console_allowlist",
+            "shared_link_listings", "listing_analytics_events", "community_event_share_aliases",
+            "apscheduler_jobs",
+        }
+        if type_ == "table" and name in ignored_tables:
+            return False
+        
+        # Also ignore specific columns if they are not part of the managed models
+        if type_ == "column" and object.table.name == "business_follows" and object.name == "created_at":
+            return False
+        if type_ == "column" and object.table.name == "community_events" and object.name == "has_ticketing":
+            return False
+        if type_ == "column" and object.table.name == "community_events" and object.name == "visibility":
+            return False
+        if type_ == "column" and object.table.name == "community_events" and object.name == "has_products":
+            return False
+        
+        if type_ == "index" and object.name == "ix_community_event_embeddings_hnsw":
+            return False
+        if type_ == "index" and object.name == "ix_community_events_visibility":
+            return False
+        if type_ == "index" and object.name == "ix_groups_invite_token":
+            return False
+        
+        # Ignore FKs that reference tables Alembic isn't managing
+        if type_ == "foreign_key_constraint" and isinstance(object, ForeignKeyConstraint):
+            if object.referred_table.name in ignored_tables:
+                return False
+            # Also check if any of the columns in the FK reference an ignored table
+            for col in object.columns:
+                if isinstance(col.table, Table) and col.table.name in ignored_tables:
+                    return False
+        return True
+
+    connectable = create_engine(url, poolclass=pool.NullPool, pool_pre_ping=True)
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection, target_metadata=target_metadata, include_object=include_object
         )
 
         with context.begin_transaction():

@@ -21,6 +21,7 @@ from sqlalchemy import (
     text,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import Float as SA_Float
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.types import UserDefinedType
@@ -100,7 +101,7 @@ alerts = Table(
     "alerts",
     metadata_obj,
     Column("id", PG_UUID(as_uuid=True), primary_key=True, default=uuid4),
-    Column("event_id", PG_UUID(as_uuid=True), ForeignKey("scheduled_events.id"), nullable=False, index=True),
+    Column("event_id", PG_UUID(as_uuid=True), ForeignKey("scheduled_events.id", ondelete="CASCADE"), nullable=False, index=True),
     Column("alert_type", String(32), nullable=False, index=True),
     Column("trigger_at", DateTime(timezone=True), nullable=False, index=True),
     Column("message", Text, nullable=False),
@@ -208,7 +209,7 @@ groups = Table(
     Column("created_at", DateTime(timezone=True), nullable=False, index=True),
     Column("group_type", String(32), nullable=False, default="friend"),
     Column("invite_token", String(64), nullable=True),
-    Column("pinned_event_id", PG_UUID(as_uuid=True), nullable=True),
+    Column("pinned_event_id", PG_UUID(as_uuid=True), ForeignKey("scheduled_events.id", ondelete="SET NULL"), nullable=True),
 )
 
 group_memberships = Table(
@@ -272,10 +273,7 @@ business_follows = Table(
     metadata_obj,
     Column("follower_user_id", PG_UUID(as_uuid=True), nullable=False),
     Column("business_id", PG_UUID(as_uuid=True), nullable=False),
-    Column("created_at", DateTime(timezone=True), nullable=False),
     PrimaryKeyConstraint("follower_user_id", "business_id", name="pk_business_follows"),
-    ForeignKeyConstraint(["follower_user_id"], ["auth_users.id"], name="fk_business_follows_follower", ondelete="CASCADE"),
-    ForeignKeyConstraint(["business_id"], ["businesses.id"], name="fk_business_follows_business", ondelete="CASCADE"),
 )
 Index("ix_business_follows_follower", business_follows.c.follower_user_id)
 Index("ix_business_follows_business", business_follows.c.business_id)
@@ -292,7 +290,7 @@ event_sources = Table(
     Column("source_url_normalized", Text, nullable=True, index=True),
     Column("poster_asset_id", PG_UUID(as_uuid=True), ForeignKey("poster_assets.id", ondelete="SET NULL"), nullable=True, index=True),
     Column("created_at", DateTime(timezone=True), nullable=False, index=True),
-    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP"), index=True),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")),
     UniqueConstraint("user_id", "draft_id", name="uq_event_sources_user_draft"),
     UniqueConstraint("user_id", "event_id", name="uq_event_sources_user_event"),
 )
@@ -316,6 +314,46 @@ poster_processing_logs = Table(
 )
 Index("ix_poster_processing_logs_created_at", poster_processing_logs.c.created_at)
 Index("ix_poster_processing_logs_status", poster_processing_logs.c.status)
+
+
+product_event_links = Table(
+    "product_event_links",
+    metadata_obj,
+    Column("id", PG_UUID(as_uuid=True), primary_key=True, default=uuid4),
+    Column("product_id", PG_UUID(as_uuid=True), nullable=False),  # FK to products (externally managed)
+    Column("community_event_id", PG_UUID(as_uuid=True), ForeignKey("community_events.id", ondelete="CASCADE"), nullable=False),
+    Column("seller_business_id", PG_UUID(as_uuid=True), nullable=False),  # FK to businesses (externally managed)
+    Column("event_owner_business_id", PG_UUID(as_uuid=True), nullable=False),  # FK to businesses (externally managed)
+    Column("commission_seller_percent", Integer, nullable=False, default=80),
+    Column("commission_owner_percent", Integer, nullable=False, default=10),
+    Column("commission_platform_percent", Integer, nullable=False, default=10),
+    Column("status", String(16), nullable=False, default="pending"),
+    Column("approved_at", DateTime(timezone=True), nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+Index("ix_pel_community_event", product_event_links.c.community_event_id)
+
+
+business_payouts = Table(
+    "business_payouts",
+    metadata_obj,
+    Column("id", PG_UUID(as_uuid=True), primary_key=True, default=uuid4),
+    Column("business_id", PG_UUID(as_uuid=True), nullable=False),  # FK to businesses (externally managed)
+    Column("period_start", DateTime(timezone=True), nullable=False),
+    Column("period_end", DateTime(timezone=True), nullable=False),
+    Column("gross_minor_units", Integer, nullable=False),
+    Column("platform_fees_minor_units", Integer, nullable=False, default=0),
+    Column("net_payout_minor_units", Integer, nullable=False),
+    Column("type", String(24), nullable=False, default="ticket_sales"),
+    Column("currency", String(3), nullable=False, default="KES"),
+    Column("status", String(16), nullable=False, default="pending", index=True),
+    Column("payout_method_snapshot", JSONB, nullable=True),
+    Column("payment_reference", String(256), nullable=True),
+    Column("paid_at", DateTime(timezone=True), nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+Index("ix_business_payouts_business", business_payouts.c.business_id)
+Index("ix_business_payouts_status", business_payouts.c.status)
 
 
 def start_mappers() -> None:
