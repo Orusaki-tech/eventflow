@@ -4,53 +4,64 @@ import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
   Pressable,
-  ScrollView,
   View,
 } from "react-native";
-import { listToday, listUpcoming, type TodayEventRow, type UpcomingEventRow } from "../api/eventflow";
+import {
+  listToday,
+  listUpcoming,
+  getSavedCommunityEvents,
+  type TodayEventRow,
+  type UpcomingEventRow,
+  type UnifiedFeedEvent,
+} from "../api/eventflow";
 import { useAuth } from "../auth/AuthContext";
 import type { InboxStackParamList } from "../navigation/types";
 import { navigationRef } from "../navigation/navigationRef";
 import { UpcomingEventCard } from "../components/UpcomingEventCard";
+import { EventCardCompact, COMPACT_CARD_WIDTH } from "../components/EventCardCompact";
 import { dedupeByEventFingerprint } from "../lib/dedupeEvents";
 import { tokens, pressedOpacityStyle } from "../design/tokens";
 import { useTheme } from "../design/theme";
 import { useThemedStyles } from "../design/useThemedStyles";
-import { AppText, Button, CarouselDots, CAROUSEL_EVENT_CARD_STRIDE, ProfileIconButton } from "../design/components";
+import { AppText, Button, ProfileIconButton } from "../design/components";
 
 type Props = NativeStackScreenProps<InboxStackParamList, "InboxHome">;
 
-function isThisWeek(dateStr: string): boolean {
-  const now = new Date();
-  const d = new Date(dateStr);
-  const endOfWeek = new Date(now);
-  endOfWeek.setDate(now.getDate() + (7 - now.getDay()));
-  endOfWeek.setHours(23, 59, 59, 999);
-  return d > now && d <= endOfWeek;
-}
+type Segment = "today" | "upcoming";
 
 export function HomeScreen({ navigation }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles((c) => ({
     root: { flex: 1, backgroundColor: c.bg },
-    content: { paddingBottom: 50, flexGrow: 1 },
     lead: { marginBottom: tokens.spacing[8] },
-    center: { paddingVertical: 48, alignItems: "center" as const, justifyContent: "center" as const },
-    empty: { lineHeight: 20 },
-    sectionTitle: { marginBottom: tokens.spacing[12] },
-    todayList: { gap: tokens.spacing[12] },
-    todayCardWrap: { width: "100%" as const },
-    carousel: { paddingVertical: 2 },
-    carouselGap: { width: 10 },
-    carouselItem: { width: 320 },
+    segmentRow: {
+      flexDirection: "row" as const,
+      paddingHorizontal: tokens.spacing[16],
+      paddingTop: tokens.spacing[16],
+      paddingBottom: tokens.spacing[8],
+      gap: tokens.spacing[8],
+    },
+    segment: {
+      flex: 1,
+      paddingVertical: tokens.spacing[12],
+      alignItems: "center" as const,
+      borderRadius: tokens.radii.sm,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.surface1,
+    },
+    segmentActive: {
+      backgroundColor: c.surface2,
+      borderColor: c.textPrimary,
+    },
+    center: { flex: 1, justifyContent: "center" as const, alignItems: "center" as const },
+    list: { padding: tokens.spacing[16], backgroundColor: c.bg, flexGrow: 1, gap: tokens.spacing[12] },
+    empty: { textAlign: "center" as const, marginTop: 48, paddingHorizontal: 24 },
+    savedSection: { gap: tokens.spacing[8], paddingHorizontal: tokens.spacing[16], marginBottom: tokens.spacing[16] },
   }));
   const { apiBaseUrl, accessToken } = useAuth();
-
-  const [thisWeekIdx, setThisWeekIdx] = useState(0);
-  const [laterIdx, setLaterIdx] = useState(0);
+  const [segment, setSegment] = useState<Segment>("today");
 
   React.useLayoutEffect(() => {
     navigation.setOptions({
@@ -71,8 +82,9 @@ export function HomeScreen({ navigation }: Props) {
 
   const tzOffsetMinutes = useMemo(() => -new Date().getTimezoneOffset(), []);
   const [loading, setLoading] = useState(true);
-  const [today, setToday] = useState<TodayEventRow[]>([]);
-  const [upcoming, setUpcoming] = useState<UpcomingEventRow[]>([]);
+  const [todayRows, setTodayRows] = useState<TodayEventRow[]>([]);
+  const [upcomingRows, setUpcomingRows] = useState<UpcomingEventRow[]>([]);
+  const [savedEvents, setSavedEvents] = useState<UnifiedFeedEvent[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -80,17 +92,21 @@ export function HomeScreen({ navigation }: Props) {
       void (async () => {
         setLoading(true);
         try {
-          const [t, u] = await Promise.all([
+          const [t, u, s] = await Promise.all([
             listToday(apiBaseUrl, accessToken, tzOffsetMinutes),
             listUpcoming(apiBaseUrl, accessToken, 30),
+            getSavedCommunityEvents(apiBaseUrl, accessToken).catch(() => []),
           ]);
-          if (cancelled) return;
-          setToday(t);
-          setUpcoming(u);
+          if (!cancelled) {
+            setTodayRows(t);
+            setUpcomingRows(u);
+            setSavedEvents(s);
+          }
         } catch {
           if (!cancelled) {
-            setToday([]);
-            setUpcoming([]);
+            setTodayRows([]);
+            setUpcomingRows([]);
+            setSavedEvents([]);
           }
         } finally {
           if (!cancelled) setLoading(false);
@@ -102,65 +118,36 @@ export function HomeScreen({ navigation }: Props) {
     }, [apiBaseUrl, accessToken, tzOffsetMinutes])
   );
 
-  const uniqueToday = useMemo(() => dedupeByEventFingerprint<TodayEventRow>(today), [today]);
-  const uniqueUpcoming = useMemo(() => dedupeByEventFingerprint<UpcomingEventRow>(upcoming), [upcoming]);
+  const uniqueTodayRows = useMemo(() => dedupeByEventFingerprint<TodayEventRow>(todayRows), [todayRows]);
+  const uniqueUpcomingRows = useMemo(() => dedupeByEventFingerprint<UpcomingEventRow>(upcomingRows), [upcomingRows]);
 
-  const thisWeek = useMemo(
-    () => uniqueUpcoming.filter((e) => isThisWeek(e.start_time)).slice(0, 8),
-    [uniqueUpcoming]
-  );
-
-  const later = useMemo(
-    () => uniqueUpcoming.filter((e) => !isThisWeek(e.start_time)).slice(0, 8),
-    [uniqueUpcoming]
-  );
-
-  const renderEventCard = useCallback(
-    (e: UpcomingEventRow) => (
-      <UpcomingEventCard
-        apiBaseUrl={apiBaseUrl}
-        item={e}
-        onPress={({ eventId, sharedUrl }) => {
-          if (navigationRef.isReady()) {
-            navigationRef.navigate("EventDetail", {
-              eventId,
-              title: e.title,
-              start_time: e.start_time,
-              venue: e.venue,
-              price: e.price ?? undefined,
-              ownerUserId: e.user_id,
-              sharedUrl: sharedUrl ?? undefined,
-            });
-          }
-        }}
-      />
-    ),
-    [apiBaseUrl]
-  );
-
-  const onScrollEnd = (setter: (n: number) => void, n: number) =>
-    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (n <= 1) return;
-      const x = e.nativeEvent.contentOffset.x;
-      const idx = Math.min(Math.max(0, Math.round(x / CAROUSEL_EVENT_CARD_STRIDE)), n - 1);
-      setter(idx);
-    };
-
-  if (loading) {
+  const renderSavedEvents = () => {
+    if (savedEvents.length === 0) return null;
     return (
-      <View style={[styles.center, { backgroundColor: colors.bg }]}>
-        <ActivityIndicator color={colors.textSecondary} />
+      <View style={styles.savedSection}>
+        <AppText variant="label">Saved Events</AppText>
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={savedEvents}
+          keyExtractor={(item) => item.item_id}
+          renderItem={({ item }) => (
+            <View style={{ width: COMPACT_CARD_WIDTH, marginRight: tokens.spacing[8] }}>
+              <EventCardCompact item={item} />
+            </View>
+          )}
+        />
       </View>
     );
-  }
+  };
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+    <View style={styles.root}>
       {/* Lead + quick actions */}
       <View style={{ paddingHorizontal: tokens.spacing[20], paddingTop: tokens.spacing[8], gap: tokens.spacing[16] }}>
         <AppText tone="secondary" style={styles.lead}>
-          {uniqueToday.length > 0
-            ? `You have ${uniqueToday.length} event${uniqueToday.length > 1 ? "s" : ""} today.`
+          {uniqueTodayRows.length > 0
+            ? `You have ${uniqueTodayRows.length} event${uniqueTodayRows.length > 1 ? "s" : ""} today.`
             : "No events today. Use Capture to add one."}
         </AppText>
 
@@ -172,125 +159,108 @@ export function HomeScreen({ navigation }: Props) {
         />
       </View>
 
-      {/* Today */}
-      {uniqueToday.length > 0 && (
-        <View style={{ marginTop: tokens.spacing[24], paddingHorizontal: tokens.spacing[20] }}>
-          <AppText variant="title" style={{ marginBottom: tokens.spacing[12] }}>Today</AppText>
-          <View style={styles.todayList}>
-            {uniqueToday.map((e) => (
-              <View key={e.id} style={styles.todayCardWrap}>
-                <UpcomingEventCard
-                  apiBaseUrl={apiBaseUrl}
-                  kickerLabel="Today"
-                  todayContext={{
-                    accessToken,
-                    venueId: e.venue_id,
-                    visibility: e.visibility,
-                  }}
-                  item={e}
-                  onPress={({ eventId, sharedUrl }) => {
-                    if (navigationRef.isReady()) {
-                      navigationRef.navigate("EventDetail", {
-                        eventId,
-                        title: e.title,
-                        start_time: e.start_time,
-                        venue: e.venue,
-                        price: e.price ?? undefined,
-                        ownerUserId: e.user_id,
-                        sharedUrl: sharedUrl ?? undefined,
-                      });
-                    }
-                  }}
-                />
-              </View>
-            ))}
-          </View>
-        </View>
-      )}
-
-      {/* This Week */}
-      {thisWeek.length > 0 && (
-        <View style={{ marginTop: tokens.spacing[24] }}>
-          <View style={{ paddingHorizontal: tokens.spacing[20] }}>
-            <AppText variant="title" style={styles.sectionTitle}>This Week</AppText>
-          </View>
-          <FlatList
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            snapToInterval={CAROUSEL_EVENT_CARD_STRIDE}
-            snapToAlignment="start"
-            decelerationRate="fast"
-            disableIntervalMomentum
-            contentContainerStyle={styles.carousel}
-            data={thisWeek}
-            keyExtractor={(e) => e.id}
-            ItemSeparatorComponent={() => <View style={styles.carouselGap} />}
-            onMomentumScrollEnd={onScrollEnd(setThisWeekIdx, thisWeek.length)}
-            renderItem={({ item: e }) => (
-              <View style={styles.carouselItem}>{renderEventCard(e)}</View>
-            )}
-          />
-          <View style={{ paddingHorizontal: tokens.spacing[20] }}>
-            <CarouselDots count={thisWeek.length} activeIndex={thisWeekIdx} />
-          </View>
-        </View>
-      )}
-
-      {/* Later (beyond this week) */}
-      {later.length > 0 && (
-        <View style={{ marginTop: tokens.spacing[24] }}>
-          <View style={{ paddingHorizontal: tokens.spacing[20] }}>
-            <AppText variant="title" style={styles.sectionTitle}>Upcoming</AppText>
-          </View>
-          <FlatList
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            snapToInterval={CAROUSEL_EVENT_CARD_STRIDE}
-            snapToAlignment="start"
-            decelerationRate="fast"
-            disableIntervalMomentum
-            contentContainerStyle={styles.carousel}
-            data={later}
-            keyExtractor={(e) => e.id}
-            ItemSeparatorComponent={() => <View style={styles.carouselGap} />}
-            onMomentumScrollEnd={onScrollEnd(setLaterIdx, later.length)}
-            renderItem={({ item: e }) => (
-              <View style={styles.carouselItem}>{renderEventCard(e)}</View>
-            )}
-          />
-          <View style={{ paddingHorizontal: tokens.spacing[20] }}>
-            <CarouselDots count={later.length} activeIndex={laterIdx} />
-          </View>
-        </View>
-      )}
-
-      {/* Empty state */}
-      {uniqueToday.length === 0 && thisWeek.length === 0 && later.length === 0 && (
-        <View style={[styles.center, { paddingHorizontal: tokens.spacing[20] }]}>
-          <AppText tone="tertiary" style={styles.empty}>
-            Nothing on your calendar yet.
+      <View style={styles.segmentRow}>
+        <Pressable
+          accessibilityLabel="Today tab"
+          style={({ pressed }) => [
+            styles.segment,
+            segment === "today" && styles.segmentActive,
+            pressedOpacityStyle(pressed),
+          ]}
+          onPress={() => setSegment("today")}
+        >
+          <AppText variant="label" tone={segment === "today" ? "primary" : "secondary"}>
+            Today
           </AppText>
-        </View>
-      )}
+        </Pressable>
+        <Pressable
+          accessibilityLabel="Upcoming tab"
+          style={({ pressed }) => [
+            styles.segment,
+            segment === "upcoming" && styles.segmentActive,
+            pressedOpacityStyle(pressed),
+          ]}
+          onPress={() => setSegment("upcoming")}
+        >
+          <AppText variant="label" tone={segment === "upcoming" ? "primary" : "secondary"}>
+            Upcoming
+          </AppText>
+        </Pressable>
+      </View>
 
-      {/* View full calendar */}
-      <Pressable
-        accessibilityLabel="View full calendar"
-        style={({ pressed }) => [
-          { paddingVertical: tokens.spacing[16], paddingHorizontal: tokens.spacing[20], marginTop: tokens.spacing[8] },
-          pressedOpacityStyle(pressed),
-        ]}
-        onPress={() =>
-          navigation.getParent()?.navigate("Calendar", {
-            screen: "CalendarHome",
-            params: { segment: "upcoming" },
-          })
-        }
-      >
-        <AppText variant="label" tone="secondary">
-          View full calendar
-        </AppText>
-      </Pressable>
-    </ScrollView>
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator color={colors.textSecondary} />
+        </View>
+      ) : segment === "today" ? (
+        <FlatList
+          contentContainerStyle={styles.list}
+          data={uniqueTodayRows}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={renderSavedEvents}
+          ListEmptyComponent={
+            <AppText tone="tertiary" style={styles.empty}>
+              No events for today.
+            </AppText>
+          }
+          renderItem={({ item }) => (
+            <UpcomingEventCard
+              apiBaseUrl={apiBaseUrl}
+              kickerLabel="Today"
+              todayContext={{
+                accessToken,
+                venueId: item.venue_id,
+                visibility: item.visibility,
+              }}
+              item={item}
+              onPress={({ eventId, sharedUrl }) => {
+                if (navigationRef.isReady()) {
+                  navigationRef.navigate("EventDetail", {
+                    eventId,
+                    title: item.title,
+                    start_time: item.start_time,
+                    venue: item.venue,
+                    price: item.price ?? undefined,
+                    ownerUserId: item.user_id,
+                    sharedUrl: sharedUrl ?? undefined,
+                  });
+                }
+              }}
+            />
+          )}
+        />
+      ) : (
+        <FlatList
+          contentContainerStyle={styles.list}
+          data={uniqueUpcomingRows}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={renderSavedEvents}
+          ListEmptyComponent={
+            <AppText tone="tertiary" style={styles.empty}>
+              No upcoming events yet. Import a link from the Capture tab.
+            </AppText>
+          }
+          renderItem={({ item }) => (
+            <UpcomingEventCard
+              apiBaseUrl={apiBaseUrl}
+              item={item}
+              onPress={({ eventId, sharedUrl }) => {
+                if (navigationRef.isReady()) {
+                  navigationRef.navigate("EventDetail", {
+                    eventId,
+                    title: item.title,
+                    start_time: item.start_time,
+                    venue: item.venue,
+                    price: item.price ?? undefined,
+                    ownerUserId: item.user_id,
+                    sharedUrl: sharedUrl ?? undefined,
+                  });
+                }
+              }}
+            />
+          )}
+        />
+      )}
+    </View>
   );
 }

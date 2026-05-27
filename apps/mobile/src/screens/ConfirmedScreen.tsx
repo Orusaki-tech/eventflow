@@ -196,8 +196,8 @@ export function ConfirmedScreen({ navigation, route }: Props) {
           size="md"
           onPress={() =>
             navigation.navigate("Main", {
-              screen: "Calendar",
-              params: { screen: "CalendarHome", params: { segment: "today" } },
+              screen: "Inbox",
+              params: { screen: "InboxHome" },
             })
           }
         />

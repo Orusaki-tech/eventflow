@@ -4,7 +4,6 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React, { useMemo } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { BusinessProfileScreen } from "../screens/BusinessProfileScreen";
-import { CalendarScreen } from "../screens/CalendarScreen";
 import { CaptureScreen } from "../screens/CaptureScreen";
 import { DiscoverHomeScreen } from "../screens/DiscoverHomeScreen";
 import { HomeScreen } from "../screens/HomeScreen";
@@ -12,9 +11,8 @@ import { MyTicketsScreen } from "../screens/MyTicketsScreen";
 import { ProfileScreen } from "../screens/ProfileScreen";
 import { useTheme } from "../design/theme";
 import type {
-  CalendarStackParamList,
-  CaptureStackParamList,
   DiscoverStackParamList,
+  CaptureStackParamList,
   InboxStackParamList,
   MainTabParamList,
   ProfileStackParamList,
@@ -22,7 +20,6 @@ import type {
 } from "./types";
 
 const InboxStack = createNativeStackNavigator<InboxStackParamList>();
-const CalendarStack = createNativeStackNavigator<CalendarStackParamList>();
 const CaptureStack = createNativeStackNavigator<CaptureStackParamList>();
 const DiscoverStack = createNativeStackNavigator<DiscoverStackParamList>();
 const TicketsStack = createNativeStackNavigator<TicketsStackParamList>();
@@ -49,15 +46,6 @@ function InboxStackNavigator() {
     <InboxStack.Navigator screenOptions={stackScreenOptions}>
       <InboxStack.Screen name="InboxHome" component={HomeScreen} options={{ title: "Inbox" }} />
     </InboxStack.Navigator>
-  );
-}
-
-function CalendarStackNavigator() {
-  const stackScreenOptions = useStackScreenOptions();
-  return (
-    <CalendarStack.Navigator screenOptions={stackScreenOptions}>
-      <CalendarStack.Screen name="CalendarHome" component={CalendarScreen} options={{ title: "Calendar" }} />
-    </CalendarStack.Navigator>
   );
 }
 
@@ -122,14 +110,6 @@ export function MainTabsNavigator() {
         options={{
           title: "Inbox",
           tabBarIcon: ({ color, size }) => <Ionicons name="mail-outline" color={color} size={size} />,
-        }}
-      />
-      <Tab.Screen
-        name="Calendar"
-        component={CalendarStackNavigator}
-        options={{
-          title: "Calendar",
-          tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" color={color} size={size} />,
         }}
       />
       <Tab.Screen

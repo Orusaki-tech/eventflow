@@ -5,12 +5,6 @@ export type InboxStackParamList = {
   InboxHome: undefined;
 };
 
-/** Stack inside Calendar tab */
-export type CalendarStackParamList = {
-  CalendarHome: { segment?: "today" | "upcoming" } | undefined;
-};
-
-/** Stack inside Capture tab */
 export type CaptureStackParamList = {
   CaptureHome: undefined;
 };
@@ -34,7 +28,6 @@ export type ProfileStackParamList = {
 /** Bottom tabs (each tab is a nested stack) */
 export type MainTabParamList = {
   Inbox: NavigatorScreenParams<InboxStackParamList>;
-  Calendar: NavigatorScreenParams<CalendarStackParamList>;
   Tickets: NavigatorScreenParams<TicketsStackParamList>;
   Capture: NavigatorScreenParams<CaptureStackParamList>;
   Discover: NavigatorScreenParams<DiscoverStackParamList>;
