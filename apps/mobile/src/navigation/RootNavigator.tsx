@@ -21,6 +21,7 @@ import { SharedMediaImportScreen } from "../screens/SharedMediaImportScreen";
 import { ProcessingScreen } from "../screens/ProcessingScreen";
 import { SocialHubScreen } from "../screens/SocialHubScreen";
 import { SubscriptionScreen } from "../screens/SubscriptionScreen";
+import { UserPublicProfileScreen } from "../screens/UserPublicProfileScreen";
 import { STORAGE_ONBOARDING_DONE } from "../lib/constants";
 import { useTheme } from "../design/theme";
 import { navigationRef } from "./navigationRef";
@@ -159,6 +160,11 @@ export function RootNavigator() {
           name="BusinessProfileView"
           component={BusinessProfileViewScreen}
           options={{ title: "Business" }}
+        />
+        <Stack.Screen
+          name="UserPublicProfile"
+          component={UserPublicProfileScreen}
+          options={{ title: "Profile" }}
         />
         <Stack.Screen
           name="SocialHub"

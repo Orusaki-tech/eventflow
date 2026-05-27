@@ -80,4 +80,8 @@ export type RootStackParamList = {
   SocialHub: undefined;
   Subscription: undefined;
   MyTickets: undefined;
+  UserPublicProfile: {
+    userId: string;
+    displayName?: string;
+  };
 };

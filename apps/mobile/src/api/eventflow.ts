@@ -1423,4 +1423,35 @@ export async function getBusinessEvents(
   return profile.listings;
 }
 
+// ─── USER PUBLIC PROFILE ────────────────────────────────────────
+
+export type PublicProfileEventRow = {
+  community_event_id: string;
+  title: string;
+  start_time: string;
+  venue: string;
+  poster_image_uri: string | null;
+  role: "organizer" | "attendee";
+};
+
+export type UserPublicProfileResponse = {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  events: PublicProfileEventRow[];
+};
+
+export async function getUserPublicProfile(
+  baseUrl: string,
+  token: string | null,
+  userId: string
+): Promise<UserPublicProfileResponse> {
+  return request<UserPublicProfileResponse>(
+    baseUrl,
+    `/api/v1/users/${encodeURIComponent(userId)}/public-profile`,
+    token,
+    { method: "GET" }
+  );
+}
+
 

@@ -387,6 +387,22 @@ class UserProfileUpsertRequest(BaseModel):
 
 class UserProfileSearchResponse(BaseModel):
     results: list[UserProfileResponse]
+
+
+class PublicProfileEventRow(BaseModel):
+    community_event_id: UUID
+    title: str
+    start_time: datetime
+    venue: str
+    poster_image_uri: str | None = None
+    role: str  # "organizer" or "attendee"
+
+
+class UserPublicProfileResponse(BaseModel):
+    user_id: UUID
+    display_name: str
+    avatar_url: str | None = None
+    events: list[PublicProfileEventRow]
     total: int
 
 

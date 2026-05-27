@@ -19,6 +19,8 @@ from eventflow.entrypoints.api.schemas import (
     UserProfileResponse,
     UserProfileUpsertRequest,
     UserProfileSearchResponse,
+    PublicProfileEventRow,
+    UserPublicProfileResponse,
 )
 from eventflow.entrypoints.dependencies import get_current_user_id, get_session, get_uow
 from eventflow.service_layer import budget_views
@@ -294,4 +296,71 @@ async def get_user_profile(
     if not row[2]:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return UserProfileResponse(user_id=user_id, display_name=row[0], avatar_url=row[1], is_public=row[2])
+
+
+@router.get("/users/{user_id}/public-profile", status_code=status.HTTP_200_OK)
+async def get_user_public_profile(
+    user_id: UUID,
+    session=Depends(get_session),
+):
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
+    row = session.execute(
+        text("SELECT display_name, avatar_url, is_public FROM user_profiles WHERE user_id = :uid"),
+        {"uid": str(user_id)},
+    ).first()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if not row[2]:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    now = datetime.now(timezone.utc)
+
+    events_organized = session.execute(
+        text("""
+            SELECT id, title, start_time, venue, poster_image_uri
+            FROM community_events
+            WHERE user_id = :uid AND start_time < :now
+            ORDER BY start_time DESC
+            LIMIT 20
+        """),
+        {"uid": str(user_id), "now": now},
+    ).fetchall()
+
+    events_attended = session.execute(
+        text("""
+            SELECT DISTINCT ce.id, ce.title, ce.start_time, ce.venue, ce.poster_image_uri
+            FROM community_events ce
+            INNER JOIN tickets t ON t.community_event_id = ce.id AND t.user_id = :uid AND t.status = 'active'
+            WHERE ce.start_time < :now
+            ORDER BY ce.start_time DESC
+            LIMIT 20
+        """),
+        {"uid": str(user_id), "now": now},
+    ).fetchall()
+
+    events = []
+    seen = set()
+    for r in events_organized:
+        eid = str(r[0])
+        seen.add(eid)
+        events.append(PublicProfileEventRow(
+            community_event_id=r[0], title=r[1], start_time=r[2],
+            venue=r[3], poster_image_uri=r[4], role="organizer",
+        ))
+    for r in events_attended:
+        eid = str(r[0])
+        if eid in seen:
+            continue
+        events.append(PublicProfileEventRow(
+            community_event_id=r[0], title=r[1], start_time=r[2],
+            venue=r[3], poster_image_uri=r[4], role="attendee",
+        ))
+
+    return UserPublicProfileResponse(
+        user_id=user_id,
+        display_name=row[0],
+        avatar_url=row[1],
+        events=events,
+    )
 
