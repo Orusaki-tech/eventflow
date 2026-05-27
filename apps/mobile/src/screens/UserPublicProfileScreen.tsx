@@ -1,40 +1,46 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Image, StyleSheet, View } from "react-native";
-import { getUserProfile, postFollowUser, deleteFollowUser, listFollowing } from "../api/eventflow";
+import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, View } from "react-native";
+import { getUserPublicProfile, type PublicProfileEventRow, postFollowUser, deleteFollowUser, listFollowing } from "../api/eventflow";
 import { useAuth } from "../auth/AuthContext";
 import { AppText, Button } from "../design/components";
-import { tokens } from "../design/tokens";
+import { pressedOpacityStyle, tokens } from "../design/tokens";
 import { useTheme } from "../design/theme";
+import { navigationRef } from "../navigation/navigationRef";
 import type { RootStackParamList } from "../navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "UserPublicProfile">;
 
 export function UserPublicProfileScreen({ route }: Props) {
-  const { colors } = useTheme();
   const { userId, displayName } = route.params;
-  const { apiBaseUrl, accessToken } = useAuth();
-  const [profile, setProfile] = useState<{ display_name: string; avatar_url: string | null } | null>(null);
+  const { colors } = useTheme();
+  const { accessToken, apiBaseUrl } = useAuth();
+  
+  const [profile, setProfile] = useState<{ display_name: string; avatar_url: string | null; events: PublicProfileEventRow[]; total: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
 
   useEffect(() => {
     if (!accessToken) return;
+    let cancelled = false;
     void (async () => {
       try {
-        const [p, f] = await Promise.all([
-          getUserProfile(apiBaseUrl, accessToken, userId),
+        const [res, f] = await Promise.all([
+          getUserPublicProfile(apiBaseUrl, accessToken, userId),
           listFollowing(apiBaseUrl, accessToken),
         ]);
-        setProfile(p);
-        setIsFollowing(f.some((r) => r.following_user_id === userId));
+        if (!cancelled) {
+          setProfile(res as any);
+          setIsFollowing(f.some((r) => r.following_user_id === userId));
+        }
       } catch {
-        setProfile({ display_name: displayName ?? "User", avatar_url: null });
+        if (!cancelled) setProfile({ display_name: displayName ?? "User", avatar_url: null, events: [], total: 0 });
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
-  }, [userId, displayName, apiBaseUrl, accessToken]);
+    return () => { cancelled = true; };
+  }, [userId, displayName, accessToken, apiBaseUrl]);
 
   const toggleFollow = async () => {
     if (!accessToken) return;
@@ -50,16 +56,63 @@ export function UserPublicProfileScreen({ route }: Props) {
     }
   };
 
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.bg }}>
+        <ActivityIndicator color={colors.textSecondary} />
+      </View>
+    );
+  }
+
+  const renderEvent = ({ item }: { item: PublicProfileEventRow }) => (
+    <Pressable
+      style={({ pressed }) => [{
+        flexDirection: "row",
+        gap: 12,
+        padding: tokens.spacing[12],
+        borderRadius: tokens.radii.sm,
+        backgroundColor: colors.surface1,
+        borderWidth: 1,
+        borderColor: colors.border,
+      }, pressedOpacityStyle(pressed)]}
+      onPress={() => {
+        if (navigationRef.isReady()) {
+          navigationRef.navigate("CommunityListingDetail", {
+            communityEventId: item.community_event_id,
+            organizerUserId: userId,
+            title: item.title,
+            start_time: item.start_time,
+            venue: item.venue,
+            viewMode: "viewer",
+          });
+        }
+      }}
+    >
+      {item.poster_image_uri ? (
+        <Image source={{ uri: item.poster_image_uri }} style={{ width: 60, height: 60, borderRadius: 8 }} resizeMode="cover" />
+      ) : (
+        <View style={{ width: 60, height: 60, borderRadius: 8, backgroundColor: colors.surface2 }} />
+      )}
+      <View style={{ flex: 1, gap: 4 }}>
+        <AppText style={{ fontWeight: "700" }} numberOfLines={2}>{item.title}</AppText>
+        <AppText tone="secondary" style={{ fontSize: 12 }}>{item.venue}</AppText>
+        <AppText style={{ fontSize: 11, color: item.role === "organizer" ? "#4CAF50" : "#FF9800" }}>
+          {item.role === "organizer" ? "Organized" : "Attended"}
+        </AppText>
+      </View>
+    </Pressable>
+  );
+
   const initial = (profile?.display_name ?? "U").charAt(0).toUpperCase();
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.bg }]}>
-      {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.textSecondary} />
-        </View>
-      ) : (
-        <View style={styles.content}>
+    <FlatList
+      style={{ backgroundColor: colors.bg }}
+      contentContainerStyle={{ padding: tokens.spacing[16], gap: tokens.spacing[12], paddingBottom: 50 }}
+      data={profile?.events ?? []}
+      keyExtractor={(item) => `${item.role}-${item.community_event_id}`}
+      ListHeaderComponent={
+        <View style={styles.header}>
           {profile?.avatar_url ? (
             <Image source={{ uri: profile.avatar_url }} style={styles.avatar} />
           ) : (
@@ -70,27 +123,32 @@ export function UserPublicProfileScreen({ route }: Props) {
           <AppText variant="headline" style={{ marginTop: 12 }}>
             {profile?.display_name ?? "User"}
           </AppText>
-          <AppText tone="tertiary" variant="labelSmall">
+          <AppText tone="tertiary" variant="labelSmall" style={{ marginBottom: 16 }}>
             {userId.slice(0, 12)}...
           </AppText>
-          <View style={{ marginTop: 16, width: "100%" }}>
-            <Button
-              label={isFollowing ? "Unfollow" : "Follow"}
-              variant={isFollowing ? "outline" : "filled"}
-              onPress={toggleFollow}
-              fullWidth
-            />
-          </View>
+          <Button
+            label={isFollowing ? "Unfollow" : "Follow"}
+            variant={isFollowing ? "outline" : "filled"}
+            onPress={() => void toggleFollow()}
+            fullWidth
+          />
+          <AppText tone="secondary" style={{ marginTop: 24, alignSelf: "flex-start" }}>
+            {profile?.events?.length ?? 0} public event{(profile?.events?.length ?? 0) !== 1 ? "s" : ""}
+          </AppText>
         </View>
-      )}
-    </View>
+      }
+      ListEmptyComponent={
+        <View style={{ paddingVertical: 40, alignItems: "center" }}>
+          <AppText tone="tertiary">No public events yet.</AppText>
+        </View>
+      }
+      renderItem={renderEvent}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  content: { alignItems: "center", padding: tokens.spacing[20], paddingTop: 48 },
+  header: { alignItems: "center", paddingBottom: tokens.spacing[12] },
   avatar: { width: 96, height: 96, borderRadius: 48 },
   avatarLetter: { alignItems: "center", justifyContent: "center" },
 });

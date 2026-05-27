@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import React, { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   EventflowApiError,
@@ -195,8 +195,9 @@ export function ProfileScreen({ navigation }: Props) {
       : colors.textSecondary;
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Card style={styles.card}>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <Card style={styles.card}>
         <AppText variant="title">Account</AppText>
         <AppText tone="secondary" style={styles.email}>
           {email ?? "Signed in"}
@@ -304,6 +305,7 @@ export function ProfileScreen({ navigation }: Props) {
       </Card>
 
       <Button label="Sign out" variant="outline" onPress={onSignOut} fullWidth />
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

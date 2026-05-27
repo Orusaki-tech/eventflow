@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Linking from "expo-linking";
 import React, { useCallback, useState } from "react";
-import { Alert, ScrollView, TextInput, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   BusinessResponse,
@@ -134,8 +134,9 @@ export function BusinessProfileScreen() {
   };
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Card style={styles.card}>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <Card style={styles.card}>
         <AppText variant="title">Listing business</AppText>
         <AppText variant="labelSmall" tone="tertiary">
           Create a business profile for promoters (stored locally on device after create).
@@ -200,5 +201,6 @@ export function BusinessProfileScreen() {
         />
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

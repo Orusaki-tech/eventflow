@@ -479,6 +479,7 @@ class BillingCheckoutStubResponse(BaseModel):
 
 class RegisterEventVideoRequest(BaseModel):
     community_event_id: UUID
+    business_id: UUID
     storage_uri: str = Field(..., min_length=8, max_length=4096)
 
 

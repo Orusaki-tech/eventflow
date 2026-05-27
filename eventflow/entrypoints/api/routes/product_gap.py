@@ -606,17 +606,17 @@ async def register_event_video(
     """Register a video URI for moderation (portal/upload pipeline)."""
     if session is None:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
-    _assert_community_listing_owner(session, body.community_event_id, user_id)
+    _assert_business_owner(session, body.business_id, user_id)
     vid = uuid4()
     now = datetime.now(timezone.utc)
     session.execute(
         text(
             """
-            INSERT INTO event_videos (id, community_event_id, storage_uri, moderation_status, created_at)
-            VALUES (:id, :ce, :uri, 'pending', :now)
+            INSERT INTO event_videos (id, community_event_id, business_id, storage_uri, moderation_status, created_at)
+            VALUES (:id, :ce, :biz, :uri, 'pending', :now)
             """
         ),
-        {"id": vid, "ce": str(body.community_event_id), "uri": body.storage_uri.strip(), "now": now},
+        {"id": vid, "ce": str(body.community_event_id), "biz": str(body.business_id), "uri": body.storage_uri.strip(), "now": now},
     )
     session.commit()
     return {"video_id": str(vid), "moderation_status": "pending"}

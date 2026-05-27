@@ -15,7 +15,7 @@ def dhash64(image_bytes: bytes) -> int:
     """
     with Image.open(io.BytesIO(image_bytes)) as img:
         img = img.convert("L").resize((9, 8), Image.Resampling.LANCZOS)
-        pixels = list(img.get_flattened_data())
+        pixels = list(img.getdata())
     # pixels is length 72 (9*8). Compare x to x+1 for each row.
     out = 0
     bit = 0

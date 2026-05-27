@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import React, { useState } from "react";
-import { Alert, ScrollView, TextInput, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from "react-native";
 import { useAuth } from "../auth/AuthContext";
 import { supabaseConfigured } from "../lib/supabase";
 import type { RootStackParamList } from "../navigation/types";
@@ -73,8 +73,9 @@ export function AuthScreen({ navigation }: Props) {
   };
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <AppText variant="headline" style={styles.title}>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <AppText variant="headline" style={styles.title}>
         EventFlow
       </AppText>
       <AppText tone="secondary" style={[styles.body, { marginBottom: tokens.spacing[16] }]}>
@@ -105,6 +106,7 @@ export function AuthScreen({ navigation }: Props) {
       />
       <Button label="Sign in" loading={busy} onPress={() => void onSignIn()} fullWidth />
       <Button label="Create account" variant="text" disabled={busy} onPress={() => void onSignUp()} fullWidth />
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

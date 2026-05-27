@@ -179,13 +179,14 @@ def main() -> int:
         for i, ceid in enumerate(ce_ids):
             mod = "pending" if i == 3 else "approved"
             vid_id = _u("alice", f"ev-video-{i}")
+            biz_id = biz_luna if i < 3 else biz_east
             conn.execute(
                 text("""
-                    INSERT INTO event_videos (id, community_event_id, storage_uri, moderation_status, created_at)
-                    VALUES (:id, :ce, :uri, :mod, :now)
-                    ON CONFLICT (id) DO UPDATE SET moderation_status=EXCLUDED.moderation_status
+                    INSERT INTO event_videos (id, community_event_id, business_id, storage_uri, moderation_status, created_at)
+                    VALUES (:id, :ce, :biz, :uri, :mod, :now)
+                    ON CONFLICT (id) DO UPDATE SET moderation_status=EXCLUDED.moderation_status, business_id=EXCLUDED.business_id
                 """),
-                {"id": vid_id, "ce": ceid, "uri": [VIDEO_5S, VIDEO_10S, VIDEO_5S, VIDEO_15S, VIDEO_10S][i], "mod": mod, "now": now},
+                {"id": vid_id, "ce": ceid, "biz": biz_id, "uri": [VIDEO_5S, VIDEO_10S, VIDEO_5S, VIDEO_15S, VIDEO_10S][i], "mod": mod, "now": now},
             )
 
         # 5) feed_videos — 5 videos (3 Luna, 2 Eastside, 1 pending)

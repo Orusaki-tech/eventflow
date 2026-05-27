@@ -1,7 +1,7 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { EventflowApiError, getDraft, patchDraft, sharePoster } from "../api/eventflow";
 import { useAuth } from "../auth/AuthContext";
@@ -191,8 +191,9 @@ export function DraftEditScreen({ navigation, route }: Props) {
   );
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <View style={styles.previewBlock}>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <View style={styles.previewBlock}>
         {sharedUrl && isInstagramPostUrl(sharedUrl) ? (
           <>
             <InstagramCarouselSourceGallery
@@ -281,6 +282,7 @@ export function DraftEditScreen({ navigation, route }: Props) {
       <TextInput style={styles.input} value={venue} onChangeText={setVenue} />
       <EventDateTimePickerField valueIso={startIso} onChangeIso={setStartIso} />
       <Button label="Save" loading={saving} onPress={() => void save()} fullWidth />
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

@@ -1,5 +1,5 @@
-import React from "react";
-import { Image, Pressable, StyleSheet, View } from "react-native";
+import React, { useCallback, useRef, useState } from "react";
+import { ActivityIndicator, Image, Pressable, StyleSheet, View } from "react-native";
 import type { UnifiedFeedVideo } from "../api/eventflow";
 import { AppText } from "../design/components";
 import { pressedOpacityStyle, tokens } from "../design/tokens";
@@ -7,38 +7,95 @@ import { useTheme } from "../design/theme";
 import { navigationRef } from "../navigation/navigationRef";
 import { COMPACT_CARD_WIDTH } from "./EventCardCompact";
 
+let NativeVideo: React.ComponentType<{
+  source: { uri: string };
+  style?: Record<string, unknown>;
+  resizeMode?: string;
+  shouldPlay?: boolean;
+  isMuted?: boolean;
+  isLooping?: boolean;
+  onPlaybackStatusUpdate?: (status: Record<string, unknown>) => void;
+  ref?: React.Ref<unknown>;
+}> | null = null;
+
+try {
+  NativeVideo = require("expo-av").Video;
+} catch {
+  // expo-av not installed, will use thumbnail fallback
+}
+
 type Props = {
   item: UnifiedFeedVideo;
 };
 
 export function VideoCardCompact({ item }: Props) {
   const { colors } = useTheme();
+  const VideoComponent = NativeVideo;
+  const videoRef = useRef<unknown>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  
+  const handlePlaybackStatusUpdate = useCallback(
+    (status: Record<string, unknown>) => {
+      if (!status.isLoaded) return;
+      if (!loaded) setLoaded(true);
+    },
+    [loaded]
+  );
+
+  const togglePlay = () => {
+    if (!VideoComponent || !item.video_uri) {
+      if (item.community_event_id && navigationRef.isReady()) {
+        navigationRef.navigate("CommunityListingDetail", {
+          communityEventId: item.community_event_id,
+          organizerUserId: "",
+          title: item.event_title ?? item.title,
+          start_time: "",
+          venue: "",
+          whatsapp_e164: item.whatsapp_e164 ?? null,
+          business_id: item.business_id,
+          viewMode: "viewer",
+        });
+      }
+      return;
+    }
+    
+    setIsPlaying(!isPlaying);
+  };
 
   return (
     <Pressable
       style={({ pressed }) => [styles.card, pressedOpacityStyle(pressed)]}
-      onPress={() => {
-        if (item.community_event_id && navigationRef.isReady()) {
-          navigationRef.navigate("CommunityListingDetail", {
-            communityEventId: item.community_event_id,
-            organizerUserId: "",
-            title: item.event_title ?? item.title,
-            start_time: "",
-            venue: "",
-            whatsapp_e164: item.whatsapp_e164 ?? null,
-            business_id: item.business_id,
-            viewMode: "viewer",
-          });
-        }
-      }}
+      onPress={togglePlay}
     >
       <View style={[styles.imageWrap, { backgroundColor: colors.surface1 }]}>
-        {item.thumbnail_uri ? (
+        {VideoComponent && item.video_uri ? (
+          <VideoComponent
+            ref={videoRef}
+            source={{ uri: item.video_uri }}
+            style={styles.image as Record<string, unknown>}
+            resizeMode="cover"
+            shouldPlay={isPlaying}
+            isMuted={true}
+            isLooping
+            onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
+          />
+        ) : item.thumbnail_uri ? (
           <Image source={{ uri: item.thumbnail_uri }} style={styles.image} resizeMode="cover" />
         ) : null}
-        <View style={styles.playOverlay}>
-          <AppText style={styles.playIcon}>▶</AppText>
-        </View>
+        
+        {(!isPlaying) && (
+          <View style={styles.playOverlay}>
+            <AppText style={styles.playIcon}>▶</AppText>
+          </View>
+        )}
+        
+        {isPlaying && !loaded && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator color="#fff" />
+          </View>
+        )}
+
         <View style={styles.viewsBadge}>
           <AppText style={styles.viewsText}>{item.views}</AppText>
         </View>
@@ -87,6 +144,12 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.3)",
     justifyContent: "center",
     alignItems: "center",
   },

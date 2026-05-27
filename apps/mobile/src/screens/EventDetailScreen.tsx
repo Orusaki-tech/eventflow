@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, TextInput, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as Linking from "expo-linking";
@@ -184,8 +184,9 @@ export function EventDetailScreen({ navigation, route }: Props) {
   };
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      {sharedUrl && isInstagramPostUrl(sharedUrl) ? (
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {sharedUrl && isInstagramPostUrl(sharedUrl) ? (
         <InstagramCarouselSourceGallery
           apiBaseUrl={apiBaseUrl}
           accessToken={accessToken}
@@ -563,7 +564,8 @@ export function EventDetailScreen({ navigation, route }: Props) {
           fullWidth
         />
       ) : null}
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
