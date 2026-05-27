@@ -1331,6 +1331,19 @@ export async function listMyClaims(baseUrl: string, token: string | null): Promi
 
 // ─── COMMUNITY EVENT SAVE / ICS / RSVP ─────────────────────────────
 
+export async function getCommunityEventDetail(
+  baseUrl: string,
+  token: string | null,
+  communityEventId: string
+): Promise<UnifiedFeedEvent> {
+  return request<UnifiedFeedEvent>(
+    baseUrl,
+    `/api/v1/discovery/community-events/${encodeURIComponent(communityEventId)}`,
+    token,
+    { method: "GET" }
+  );
+}
+
 export async function saveCommunityEventToCalendar(
   baseUrl: string,
   token: string | null,
@@ -1350,7 +1363,7 @@ export async function getSavedCommunityEvents(
 ): Promise<UnifiedFeedEvent[]> {
   return request<UnifiedFeedEvent[]>(
     baseUrl,
-    "/api/v1/events/upcoming?saved_only=true&days_ahead=365",
+    "/api/v1/discovery/community-events/saved",
     token,
     { method: "GET" }
   );
@@ -1403,25 +1416,11 @@ export async function getRsvpStatus(
 
 export async function getBusinessEvents(
   baseUrl: string,
-  token: string | null,
+  _token: string | null,
   businessId: string
 ): Promise<BusinessProfileListingRow[]> {
-  return request<BusinessProfileListingRow[]>(
-    baseUrl,
-    `/api/v1/discovery/business/${encodeURIComponent(businessId)}/listings`,
-    token,
-    { method: "GET" }
-  );
+  const profile = await getBusinessProfile(baseUrl, businessId);
+  return profile.listings;
 }
 
-export async function startGoogleCalendarOAuth(
-  baseUrl: string,
-  token: string | null
-): Promise<{ url: string }> {
-  return request<{ url: string }>(
-    baseUrl,
-    "/api/v1/calendar/google/auth",
-    token,
-    { method: "GET" }
-  );
-}
+

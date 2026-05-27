@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { NavigationContainer, DarkTheme, DefaultTheme } from "@react-navigation/native";
+import { NavigationContainer, DarkTheme, DefaultTheme, LinkingOptions } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
@@ -14,6 +14,7 @@ import { ImportLinkScreen } from "../screens/ImportLinkScreen";
 import { ManualVenueScreen } from "../screens/ManualVenueScreen";
 import { CommunityListingDetailScreen } from "../screens/CommunityListingDetailScreen";
 import { BusinessProfileViewScreen } from "../screens/BusinessProfileViewScreen";
+import { MyTicketsScreen } from "../screens/MyTicketsScreen";
 import { OnboardingScreen } from "../screens/OnboardingScreen";
 import { PosterImportScreen } from "../screens/PosterImportScreen";
 import { SharedMediaImportScreen } from "../screens/SharedMediaImportScreen";
@@ -26,6 +27,15 @@ import { navigationRef } from "./navigationRef";
 import { ShareBootstrap } from "./ShareBootstrap";
 import type { RootStackParamList } from "./types";
 import { MainTabsNavigator } from "./MainTabsNavigator";
+
+const linking: LinkingOptions<RootStackParamList> = {
+  prefixes: ["eventflow://"],
+  config: {
+    screens: {
+      CommunityListingDetail: "event/:communityEventId",
+    },
+  },
+};
 
 function SessionGuard({
   navReady,
@@ -103,6 +113,7 @@ export function RootNavigator() {
     <NavigationContainer
       ref={navigationRef}
       theme={navTheme}
+      linking={linking}
       onReady={() => setNavReady(true)}
     >
       <ShareBootstrap navReady={navReady} />
@@ -138,6 +149,11 @@ export function RootNavigator() {
           name="CommunityListingDetail"
           component={CommunityListingDetailScreen}
           options={{ title: "Listing" }}
+        />
+        <Stack.Screen
+          name="MyTickets"
+          component={MyTicketsScreen}
+          options={{ title: "My Tickets" }}
         />
         <Stack.Screen
           name="BusinessProfileView"

@@ -620,7 +620,28 @@ def main() -> int:
                     {"id": _u("alice", lkey), "paid": _u("alice", "poster-asset-a"), "uid": str(bob), "title": ltitle, "st": ltime, "venue": lvenue, "conf": lconf, "price": lprice, "status": lstatus, "now": now},
                 )
 
-        # 28) admin_console_allowlist — add Alice as admin
+        # 28a) user_profiles — all 5 users have public profiles
+        display_names = {
+            str(alice): "Alice W",
+            str(bob): "Bob K",
+            str(charlie): "Charlie M",
+            str(diana): "Diana N",
+            str(eve): "Eve O",
+        }
+        for uid in all_users:
+            conn.execute(
+                text("""
+                    INSERT INTO user_profiles (user_id, display_name, avatar_url, is_public, created_at, updated_at)
+                    VALUES (:uid, :name, :avatar, true, :now, :now)
+                    ON CONFLICT (user_id) DO UPDATE SET
+                        display_name = EXCLUDED.display_name,
+                        is_public = true,
+                        updated_at = EXCLUDED.updated_at
+                """),
+                {"uid": str(uid), "name": display_names.get(str(uid), "User"), "avatar": f"https://picsum.photos/seed/{uid}/200/200", "now": now},
+            )
+
+        # 28b) admin_console_allowlist — add Alice as admin
         conn.execute(
             text("""
                 INSERT INTO admin_console_allowlist (user_id, created_at)
@@ -632,6 +653,7 @@ def main() -> int:
 
         print("✅ Seeded production demo data:")
         print(f"   Users: alice={alice}, bob={bob}, charlie={charlie}, diana={diana}, eve={eve}")
+        print("   5 user_profiles (all public)")
         print("   2 businesses (Luna Events, Eastside Collective)")
         print("   5 community_events with ticket_types + videos")
         print("   5 feed_videos (4 approved, 1 pending)")

@@ -1,12 +1,11 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect, useRoute } from "@react-navigation/native";
 import React, { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Linking, Pressable, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, View } from "react-native";
 import {
   listToday,
   listUpcoming,
   getSavedCommunityEvents,
-  startGoogleCalendarOAuth,
   type TodayEventRow,
   type UpcomingEventRow,
   type UnifiedFeedEvent,
@@ -52,15 +51,6 @@ export function CalendarScreen({ navigation }: Props) {
     center: { flex: 1, justifyContent: "center" as const, alignItems: "center" as const },
     list: { padding: tokens.spacing[16], backgroundColor: c.bg, flexGrow: 1, gap: tokens.spacing[12] },
     empty: { textAlign: "center" as const, marginTop: 48, paddingHorizontal: 24 },
-    connectBtn: {
-      marginHorizontal: tokens.spacing[16],
-      paddingVertical: tokens.spacing[12],
-      borderRadius: tokens.radii.sm,
-      borderWidth: 1,
-      borderColor: c.border,
-      alignItems: "center" as const,
-      backgroundColor: c.surface1,
-    },
     savedSection: { gap: tokens.spacing[8], paddingHorizontal: tokens.spacing[16] },
     savedRow: { flexDirection: "row" as const, gap: tokens.spacing[8] },
   }));
@@ -127,18 +117,6 @@ export function CalendarScreen({ navigation }: Props) {
     return dedupeByEventFingerprint<UpcomingEventRow>(upcomingRows);
   }, [upcomingRows]);
 
-  const handleConnectGoogleCalendar = async () => {
-    try {
-      const res = await startGoogleCalendarOAuth(apiBaseUrl, accessToken);
-      if (res.url) {
-        const ok = await Linking.canOpenURL(res.url);
-        if (ok) await Linking.openURL(res.url);
-      }
-    } catch (e: unknown) {
-      console.error("Google Calendar connect failed", e);
-    }
-  };
-
   const renderSavedEvents = () => {
     if (savedEvents.length === 0) return null;
     return (
@@ -161,13 +139,6 @@ export function CalendarScreen({ navigation }: Props) {
 
   return (
     <View style={styles.root}>
-      <Pressable
-        style={({ pressed }) => [styles.connectBtn, pressedOpacityStyle(pressed)]}
-        onPress={handleConnectGoogleCalendar}
-      >
-        <AppText tone="secondary">Connect Google Calendar</AppText>
-      </Pressable>
-
       <View style={styles.segmentRow}>
         <Pressable
           accessibilityLabel="Today tab"

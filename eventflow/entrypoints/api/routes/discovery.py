@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid as _uuid
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -221,6 +222,85 @@ async def discovery_business_profile(
     )
 
 
+@router.get("/discovery/community-events/saved", status_code=status.HTTP_200_OK)
+async def list_saved_community_events(
+    user_id=Depends(get_current_user_id),
+    session=Depends(get_session),
+):
+    if session is None:
+        return []
+    rows = session.execute(
+        text("""
+            SELECT ce.id, ce.title, ce.start_time, ce.venue, ce.description, ce.poster_image_uri,
+                   ce.business_id, ce.whatsapp_e164, ce.hero_video_uri, ce.user_id as organizer_user_id
+            FROM community_events ce
+            INNER JOIN listing_analytics_events lae ON lae.community_event_id = ce.id
+            WHERE lae.user_id = :uid AND lae.metric_type = 'save'
+            ORDER BY ce.start_time ASC
+        """),
+        {"uid": str(user_id)},
+    ).fetchall()
+    return [
+        {
+            "item_id": str(r[0]),
+            "kind": "event",
+            "title": r[1],
+            "start_time": r[2].isoformat() if hasattr(r[2], "isoformat") else str(r[2]),
+            "venue": r[3],
+            "description": r[4],
+            "poster_image_uri": r[5],
+            "business_id": str(r[6]) if r[6] else None,
+            "whatsapp_e164": r[7],
+            "hero_video_uri": r[8],
+            "organizer_user_id": str(r[9]),
+            "attending_friends_count": 0,
+            "attending_friend_ids": [],
+            "price_minor_units": None,
+        }
+        for r in rows
+    ]
+
+
+@router.get("/discovery/community-events/{community_event_id}", status_code=status.HTTP_200_OK)
+async def get_community_event_detail(
+    community_event_id: UUID,
+    session=Depends(get_session),
+):
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
+    ce = session.execute(
+        text("""
+            SELECT ce.id, ce.title, ce.start_time, ce.venue, ce.description,
+                   ce.poster_image_uri, ce.hero_video_uri, ce.whatsapp_e164, ce.user_id, ce.business_id,
+                   MIN(tt.price_minor_units) AS min_price
+            FROM community_events ce
+            LEFT JOIN ticket_types tt ON tt.community_event_id = ce.id
+            WHERE ce.id = :id
+            GROUP BY ce.id
+            LIMIT 1
+        """),
+        {"id": str(community_event_id)},
+    ).first()
+    if ce is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    return {
+        "item_id": str(ce[0]),
+        "kind": "event",
+        "title": ce[1],
+        "start_time": ce[2].isoformat() if hasattr(ce[2], "isoformat") else str(ce[2]),
+        "venue": ce[3],
+        "description": ce[4],
+        "poster_image_uri": ce[5],
+        "hero_video_uri": ce[6],
+        "whatsapp_e164": ce[7],
+        "organizer_user_id": str(ce[8]),
+        "business_id": str(ce[9]) if ce[9] else None,
+        "attending_friends_count": 0,
+        "attending_friend_ids": [],
+        "price_minor_units": ce[10] if ce[10] is not None else None,
+    }
+
+
 @router.post("/discovery/community-events/{community_event_id}/save-to-calendar", status_code=status.HTTP_201_CREATED)
 async def save_community_event_to_calendar(
     community_event_id: UUID,
@@ -235,7 +315,6 @@ async def save_community_event_to_calendar(
     ).first()
     if ce is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
-    import uuid as _uuid
     event_id = _uuid.uuid4()
     session.execute(
         text("""
@@ -243,6 +322,10 @@ async def save_community_event_to_calendar(
             VALUES (:id, :uid, :title, :st, :venue, :venue, :desc, 'private')
         """),
         {"id": str(event_id), "uid": str(user_id), "title": ce.title, "st": ce.start_time, "venue": ce.venue, "desc": ce.description or ""},
+    )
+    session.execute(
+        text("INSERT INTO listing_analytics_events (id, community_event_id, user_id, metric_type, meta, created_at) VALUES (gen_random_uuid(), :ce, :uid, 'save', '{}'::jsonb, NOW()) ON CONFLICT DO NOTHING"),
+        {"ce": str(community_event_id), "uid": str(user_id)},
     )
     session.commit()
     return {"scheduled_event_id": str(event_id), "ok": True}
@@ -310,6 +393,6 @@ async def get_rsvp_status(
         text("SELECT meta FROM listing_analytics_events WHERE community_event_id = :ce AND user_id = :uid AND metric_type = 'rsvp' LIMIT 1"),
         {"ce": str(community_event_id), "uid": str(user_id)},
     ).first()
-    status_val = row["meta"]["rsvp_status"] if row and row.meta else None
+    status_val = (row["meta"] or {}).get("rsvp_status") if row else None
     return {"status": status_val}
 

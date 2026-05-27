@@ -67,10 +67,10 @@ export type RootStackParamList = {
   ManualVenue: { eventId: string; venueHint?: string | null };
   CommunityListingDetail: {
     communityEventId: string;
-    organizerUserId: string | null;
-    title: string;
-    start_time: string;
-    venue: string;
+    organizerUserId?: string | null;
+    title?: string;
+    start_time?: string;
+    venue?: string;
     whatsapp_e164?: string | null;
     business_id?: string | null;
     /** Viewer mode hides owner-only actions (e.g. promote). */
