@@ -274,6 +274,9 @@ def main() -> int:
             ("order-0", 0, alice, [tt_ids[0], tt_ids[2]], [2, 2], (150000*2 + 100000*2), "paid"),
             ("order-1", 1, alice, [tt_ids[3]], [1], 250000, "paid"),
             ("order-2", 3, bob, [tt_ids[7]], [4], 0, "paid"),  # Free tickets
+            ("order-3", 3, charlie, [tt_ids[7]], [1], 0, "paid"),
+            ("order-4", 4, diana, [tt_ids[9]], [2], 100000, "paid"), # KES 1000
+            ("order-5", 0, eve, [tt_ids[0]], [1], 150000, "paid"),   # KES 1500
         ]
         order_uuids = []
         for oi, (okey, oei, ouser, otts, oqtys, ototal, ostatus) in enumerate(orders_data):

@@ -320,11 +320,11 @@ async def get_user_public_profile(
         text("""
             SELECT id, title, start_time, venue, poster_image_uri
             FROM community_events
-            WHERE user_id = :uid AND start_time < :now
+            WHERE user_id = :uid AND visibility = 'public'
             ORDER BY start_time DESC
             LIMIT 20
         """),
-        {"uid": str(user_id), "now": now},
+        {"uid": str(user_id)},
     ).fetchall()
 
     events_attended = session.execute(
@@ -332,11 +332,11 @@ async def get_user_public_profile(
             SELECT DISTINCT ce.id, ce.title, ce.start_time, ce.venue, ce.poster_image_uri
             FROM community_events ce
             INNER JOIN tickets t ON t.community_event_id = ce.id AND t.user_id = :uid AND t.status = 'active'
-            WHERE ce.start_time < :now
+            WHERE ce.visibility = 'public'
             ORDER BY ce.start_time DESC
             LIMIT 20
         """),
-        {"uid": str(user_id), "now": now},
+        {"uid": str(user_id)},
     ).fetchall()
 
     events = []
@@ -362,5 +362,6 @@ async def get_user_public_profile(
         display_name=row[0],
         avatar_url=row[1],
         events=events,
+        total=len(events),
     )
 

@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import type { UnifiedFeedAffiliate, UnifiedFeedEvent, UnifiedFeedItem, UnifiedFeedVideo } from "../api/eventflow";
 import { AppText } from "../design/components";
 import { tokens } from "../design/tokens";
@@ -31,11 +31,16 @@ function categorizeSections(items: UnifiedFeedItem[]): Section[] {
   const sections: Section[] = [];
 
   // 1. For You — mix of all types, up to 10
-  const forYou = [
+  const forYouUnshuffled = [
     ...events.slice(0, 3),
     ...videos.slice(0, 4),
     ...affiliates.slice(0, 3),
-  ].sort(() => Math.random() - 0.5);
+  ];
+  for (let i = forYouUnshuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [forYouUnshuffled[i], forYouUnshuffled[j]] = [forYouUnshuffled[j], forYouUnshuffled[i]];
+  }
+  const forYou = forYouUnshuffled;
   if (forYou.length > 0) {
     sections.push({ id: "for_you", title: "For You", items: forYou.slice(0, 10) });
   }
@@ -49,7 +54,7 @@ function categorizeSections(items: UnifiedFeedItem[]): Section[] {
   }
 
   // 3. Trending Events — sorted by attending friends count
-  const trending = [...events].sort((a, b) => b.attending_friends_count - a.attending_friends_count);
+  const trending = [...upcoming].sort((a, b) => b.attending_friends_count - a.attending_friends_count);
   if (trending.length > 0) {
     sections.push({ id: "trending", title: "Trending Events", items: trending });
   }
@@ -103,27 +108,27 @@ function SectionRow({ section }: { section: Section }) {
         </AppText>
       </View>
 
-      <FlatList
+      <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        data={section.items}
-        keyExtractor={(item) => `${section.id}_${item.item_id}`}
         contentContainerStyle={styles.scrollContent}
         decelerationRate="fast"
         snapToInterval={COMPACT_CARD_WIDTH + tokens.spacing[10]}
-        renderItem={({ item }) => {
+      >
+        {section.items.map((item) => {
+          const key = `${section.id}_${item.item_id}`;
           switch (item.kind) {
             case "event":
-              return <EventCardCompact item={item} />;
+              return <EventCardCompact key={key} item={item} />;
             case "affiliate":
-              return <AffiliateCardCompact item={item} />;
+              return <AffiliateCardCompact key={key} item={item} />;
             case "video":
-              return <VideoCardCompact item={item} />;
+              return <VideoCardCompact key={key} item={item} />;
             default:
               return null;
           }
-        }}
-      />
+        })}
+      </ScrollView>
     </View>
   );
 }
@@ -141,10 +146,7 @@ export function SectionalFeed({ items, refreshing, onRefresh, ListHeaderComponen
   }
 
   return (
-    <FlatList
-      data={sections}
-      keyExtractor={(s) => s.id}
-      renderItem={({ item }) => <SectionRow section={item} />}
+    <ScrollView
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl
@@ -153,9 +155,13 @@ export function SectionalFeed({ items, refreshing, onRefresh, ListHeaderComponen
           tintColor={colors.textSecondary}
         />
       }
-      ListHeaderComponent={ListHeaderComponent}
-      ListFooterComponent={<View style={{ height: 32 }} />}
-    />
+    >
+      {ListHeaderComponent && <View>{ListHeaderComponent as any}</View>}
+      {sections.map((section) => (
+        <SectionRow key={section.id} section={section} />
+      ))}
+      <View style={{ height: 32 }} />
+    </ScrollView>
   );
 }
 

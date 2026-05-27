@@ -387,6 +387,7 @@ class UserProfileUpsertRequest(BaseModel):
 
 class UserProfileSearchResponse(BaseModel):
     results: list[UserProfileResponse]
+    total: int
 
 
 class PublicProfileEventRow(BaseModel):

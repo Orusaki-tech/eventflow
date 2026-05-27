@@ -182,7 +182,7 @@ export function ProfileScreen({ navigation }: Props) {
       });
       setSummary(sum);
     } catch (e: unknown) {
-      if (e instanceof EventflowApiError && e.status === 401) await refreshSession();
+      if (e instanceof EventflowApiError && e.status === 401) await refreshSession().catch(() => undefined);
       Alert.alert("Save failed", e instanceof Error ? e.message : String(e));
     } finally {
       setSavingBudget(false);

@@ -31,8 +31,9 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     )
     op.create_index("ix_user_profiles_display_name", "user_profiles", ["display_name"])
-
+    op.create_index("ix_user_profiles_is_public_display_name", "user_profiles", ["is_public", "display_name"])
 
 def downgrade() -> None:
+    op.drop_index("ix_user_profiles_is_public_display_name", table_name="user_profiles")
     op.drop_index("ix_user_profiles_display_name", table_name="user_profiles")
     op.drop_table("user_profiles")
