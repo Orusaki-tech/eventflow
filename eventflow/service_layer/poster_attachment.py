@@ -18,6 +18,46 @@ from eventflow.adapters.poster_store import PosterStore
 _log = logging.getLogger(__name__)
 
 
+def _insert_poster_processing_log(
+    *,
+    session,
+    poster_asset_id: UUID,
+    user_id: UUID,
+    extracted_title: str | None,
+    extracted_start_time,
+    extracted_venue: str | None,
+    confidence_score: float | None,
+    extracted_price: str | None,
+    model_version: str | None,
+    status: str = "success",
+    error_message: str | None = None,
+) -> None:
+    now = datetime.now(timezone.utc)
+    start_iso = extracted_start_time.isoformat() if extracted_start_time is not None and hasattr(extracted_start_time, "isoformat") else None
+    session.execute(
+        text(
+            """
+            INSERT INTO poster_processing_logs (id, poster_asset_id, user_id, extracted_title, extracted_start_time, extracted_venue, confidence_score, extracted_price, model_version, status, error_message, created_at)
+            VALUES (:id, :poster_asset_id, :user_id, :extracted_title, :extracted_start_time, :extracted_venue, :confidence_score, :extracted_price, :model_version, :status, :error_message, :created_at)
+            """
+        ),
+        {
+            "id": str(uuid4()),
+            "poster_asset_id": str(poster_asset_id),
+            "user_id": str(user_id),
+            "extracted_title": extracted_title,
+            "extracted_start_time": start_iso,
+            "extracted_venue": extracted_venue,
+            "confidence_score": confidence_score,
+            "extracted_price": extracted_price,
+            "model_version": model_version,
+            "status": status,
+            "error_message": error_message,
+            "created_at": now,
+        },
+    )
+
+
 def _poster_cache_key_sha256(content_sha256_hex: str) -> str:
     return f"eventflow:poster:sha256:{content_sha256_hex}"
 
@@ -188,5 +228,18 @@ def persist_poster_and_link_draft(
             redis_client.set(_poster_cache_key_sha256(content_sha256_hex), str(poster_asset_id), ex=30 * 24 * 3600)
         except Exception as e:
             _log.warning("poster redis pointer set failed: %s", e)
+
+    _insert_poster_processing_log(
+        session=session,
+        poster_asset_id=poster_asset_id,
+        user_id=user_id,
+        extracted_title=parsed_snapshot.get("title"),
+        extracted_start_time=parsed_snapshot.get("start_time"),
+        extracted_venue=parsed_snapshot.get("venue"),
+        confidence_score=parsed_snapshot.get("confidence_score"),
+        extracted_price=_coerce_optional_price(parsed_snapshot.get("price")),
+        model_version=model_version,
+        status="success",
+    )
 
     return poster_asset_id

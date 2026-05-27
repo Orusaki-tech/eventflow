@@ -298,6 +298,26 @@ event_sources = Table(
 )
 
 
+poster_processing_logs = Table(
+    "poster_processing_logs",
+    metadata_obj,
+    Column("id", PG_UUID(as_uuid=True), primary_key=True, default=uuid4),
+    Column("poster_asset_id", PG_UUID(as_uuid=True), ForeignKey("poster_assets.id", ondelete="CASCADE"), nullable=False),
+    Column("user_id", PG_UUID(as_uuid=True), nullable=False),
+    Column("extracted_title", String(512), nullable=True),
+    Column("extracted_start_time", DateTime(timezone=True), nullable=True),
+    Column("extracted_venue", String(512), nullable=True),
+    Column("confidence_score", Float, nullable=True),
+    Column("extracted_price", String(64), nullable=True),
+    Column("model_version", String(64), nullable=True),
+    Column("status", String(32), nullable=False, server_default="success"),
+    Column("error_message", Text, nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+Index("ix_poster_processing_logs_created_at", poster_processing_logs.c.created_at)
+Index("ix_poster_processing_logs_status", poster_processing_logs.c.status)
+
+
 def start_mappers() -> None:
     # Idempotent: FastAPI dependencies can call this multiple times.
     # SQLAlchemy will raise if a class is mapped twice.

@@ -19,6 +19,8 @@ from eventflow.entrypoints.api.schemas import (
     AdminConsoleMeResponse,
     AdminConsolePosterAssetListResponse,
     AdminConsolePosterAssetRow,
+    AdminConsolePosterProcessingLogListResponse,
+    AdminConsolePosterProcessingLogRow,
     AdminConsoleSharedLinkListingListResponse,
     AdminConsoleSharedLinkListingRow,
     AdminConsoleSummaryResponse,
@@ -282,6 +284,64 @@ async def admin_console_poster_assets(
         for r in rows
     ]
     return AdminConsolePosterAssetListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.get("/poster-processing-logs", response_model=AdminConsolePosterProcessingLogListResponse)
+async def admin_console_poster_processing_logs(
+    _admin: UUID = Depends(require_admin_user),
+    session=Depends(get_session),
+    status_filter: str | None = Query(default=None, description="Filter by status (success/failed)"),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+):
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
+
+    where_clause = ""
+    params = {"limit": limit, "offset": offset}
+    if status_filter:
+        where_clause = "WHERE ppl.status = :status"
+        params["status"] = status_filter
+
+    rows = session.execute(
+        text(
+            f"""
+            SELECT ppl.id, ppl.poster_asset_id, ppl.user_id,
+                   ppl.extracted_title, ppl.extracted_start_time, ppl.extracted_venue,
+                   ppl.confidence_score, ppl.extracted_price, ppl.model_version,
+                   ppl.status, ppl.error_message, ppl.created_at,
+                   COUNT(*) OVER() AS __total
+            FROM poster_processing_logs ppl
+            {where_clause}
+            ORDER BY ppl.created_at DESC
+            LIMIT :limit OFFSET :offset
+            """
+        ),
+        params,
+    ).fetchall()
+
+    if not rows:
+        return AdminConsolePosterProcessingLogListResponse(items=[], total=0, limit=limit, offset=offset)
+
+    total = int(rows[0][-1])
+    items = [
+        AdminConsolePosterProcessingLogRow(
+            id=r[0],
+            poster_asset_id=r[1],
+            user_id=r[2],
+            extracted_title=r[3],
+            extracted_start_time=r[4],
+            extracted_venue=r[5],
+            confidence_score=float(r[6]) if r[6] is not None else None,
+            extracted_price=r[7],
+            model_version=r[8],
+            status=r[9],
+            error_message=r[10],
+            created_at=r[11],
+        )
+        for r in rows
+    ]
+    return AdminConsolePosterProcessingLogListResponse(items=items, total=total, limit=limit, offset=offset)
 
 
 @router.patch(

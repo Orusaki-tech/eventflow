@@ -952,6 +952,29 @@ async def share_poster(
                 },
             )
 
+            # Log poster processing for admin notification.
+            uow.session.execute(
+                text(
+                    """
+                    INSERT INTO poster_processing_logs (id, poster_asset_id, user_id, extracted_title, extracted_start_time, extracted_venue, confidence_score, extracted_price, model_version, status, created_at)
+                    VALUES (:id, :poster_asset_id, :user_id, :title, :start_time, :venue, :confidence, :price, :model, :status, :created_at)
+                    """
+                ),
+                {
+                    "id": str(uuid4()),
+                    "poster_asset_id": str(poster_asset_id),
+                    "user_id": str(user_id),
+                    "title": out.get("title"),
+                    "start_time": out.get("start_time").isoformat() if out.get("start_time") else None,
+                    "venue": out.get("venue"),
+                    "confidence": out.get("confidence_score"),
+                    "price": out.get("price"),
+                    "model": getattr(settings, "gemini_model", "unknown"),
+                    "status": "success",
+                    "created_at": now,
+                },
+            )
+
             # Link this user's draft to the poster + source URL.
             _link_source(poster_asset_id=poster_asset_id, draft_id=out["draft_id"])
             uow.commit()

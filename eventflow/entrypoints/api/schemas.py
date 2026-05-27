@@ -542,6 +542,28 @@ class AdminConsolePosterAssetListResponse(BaseModel):
     offset: int
 
 
+class AdminConsolePosterProcessingLogRow(BaseModel):
+    id: UUID
+    poster_asset_id: UUID
+    user_id: UUID
+    extracted_title: str | None = None
+    extracted_start_time: datetime | None = None
+    extracted_venue: str | None = None
+    confidence_score: float | None = None
+    extracted_price: str | None = None
+    model_version: str | None = None
+    status: str
+    error_message: str | None = None
+    created_at: datetime
+
+
+class AdminConsolePosterProcessingLogListResponse(BaseModel):
+    items: list[AdminConsolePosterProcessingLogRow]
+    total: int
+    limit: int
+    offset: int
+
+
 class AdminConsoleSharedLinkListingRow(BaseModel):
     normalized_url: str
     source_url_raw: str | None = None
