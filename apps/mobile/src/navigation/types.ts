@@ -70,4 +70,5 @@ export type RootStackParamList = {
   };
   BusinessProfileView: { businessId: string; businessName?: string };
   SocialHub: undefined;
+  Subscription: undefined;
 };

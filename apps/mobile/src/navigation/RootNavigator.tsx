@@ -19,6 +19,7 @@ import { PosterImportScreen } from "../screens/PosterImportScreen";
 import { SharedMediaImportScreen } from "../screens/SharedMediaImportScreen";
 import { ProcessingScreen } from "../screens/ProcessingScreen";
 import { SocialHubScreen } from "../screens/SocialHubScreen";
+import { SubscriptionScreen } from "../screens/SubscriptionScreen";
 import { STORAGE_ONBOARDING_DONE } from "../lib/constants";
 import { useTheme } from "../design/theme";
 import { navigationRef } from "./navigationRef";
@@ -150,6 +151,11 @@ export function RootNavigator() {
             headerShown: false,
             presentation: "modal",
           }}
+        />
+        <Stack.Screen
+          name="Subscription"
+          component={SubscriptionScreen}
+          options={{ title: "Premium" }}
         />
       </Stack.Navigator>
     </NavigationContainer>

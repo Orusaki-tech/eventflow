@@ -8,7 +8,8 @@ import {
   View,
   type ViewToken,
 } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { getUnifiedFeed, logFeedWatch, getWatchQuota, type UnifiedFeedItem } from "../api/eventflow";
 import { useAuth } from "../auth/AuthContext";
 import { AppText, Button } from "../design/components";
@@ -17,12 +18,14 @@ import { useTheme } from "../design/theme";
 import { FeedVideoCard } from "../components/FeedVideoCard";
 import { FeedEventCard } from "../components/FeedEventCard";
 import { FeedAffiliateCard } from "../components/FeedAffiliateCard";
+import type { RootStackParamList } from "../navigation/types";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 export function DiscoverHomeScreen() {
   const { colors } = useTheme();
   const { accessToken, apiBaseUrl, refreshSession } = useAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [items, setItems] = useState<UnifiedFeedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -176,9 +179,7 @@ export function DiscoverHomeScreen() {
             label="Subscribe"
             variant="filled"
             size="md"
-            onPress={() => {
-              // Navigate to subscription screen in future
-            }}
+            onPress={() => navigation.navigate("Subscription", undefined)}
           />
         </View>
       )}
