@@ -65,6 +65,13 @@ class Settings(BaseSettings):
     # Poster storage (durable, for cross-user dedupe + UI)
     poster_storage_dir: str = Field(default="./data/posters", alias="POSTER_STORAGE_DIR")
 
+    # Stripe payments (subscriptions)
+    stripe_secret_key: Optional[str] = Field(default=None, alias="STRIPE_SECRET_KEY")
+    stripe_webhook_secret: Optional[str] = Field(default=None, alias="STRIPE_WEBHOOK_SECRET")
+    stripe_premium_price_id: Optional[str] = Field(default=None, alias="STRIPE_PREMIUM_PRICE_ID")
+    # Public-facing base URL for Stripe redirects (e.g. https://api.example.com or http://35.202.150.38:8000)
+    public_base_url: str = Field(default="http://localhost:8000", alias="PUBLIC_BASE_URL")
+
     # HTTP middleware
     # CSV of origins allowed for CORS. Wildcards supported as the literal value "*"
     # only when env != prod. In prod, leaving this empty disables CORS entirely

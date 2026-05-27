@@ -11,6 +11,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import text
 
 
 revision: str = "0a1b2c3d4e5f"
@@ -20,20 +21,42 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "community_events",
-        sa.Column("visibility", sa.String(length=16), nullable=False, server_default="public"),
-    )
-    op.add_column(
-        "community_events",
-        sa.Column("sponsored_rank", sa.Integer(), nullable=False, server_default="0"),
-    )
-    op.create_index("ix_community_events_visibility", "community_events", ["visibility"])
-    op.create_index("ix_community_events_sponsored_rank", "community_events", ["sponsored_rank"])
+    conn = op.get_bind()
+
+    # Check if visibility column exists; add only if missing
+    has_visibility = conn.execute(
+        text("SELECT 1 FROM information_schema.columns WHERE table_name='community_events' AND column_name='visibility'")
+    ).scalar()
+    if not has_visibility:
+        op.add_column(
+            "community_events",
+            sa.Column("visibility", sa.String(length=16), nullable=False, server_default="public"),
+        )
+        op.create_index("ix_community_events_visibility", "community_events", ["visibility"])
+
+    # Check if sponsored_rank column exists; add only if missing
+    has_sponsored = conn.execute(
+        text("SELECT 1 FROM information_schema.columns WHERE table_name='community_events' AND column_name='sponsored_rank'")
+    ).scalar()
+    if not has_sponsored:
+        op.add_column(
+            "community_events",
+            sa.Column("sponsored_rank", sa.Integer(), nullable=False, server_default="0"),
+        )
+        op.create_index("ix_community_events_sponsored_rank", "community_events", ["sponsored_rank"])
 
 
 def downgrade() -> None:
-    op.drop_index("ix_community_events_sponsored_rank", table_name="community_events")
-    op.drop_index("ix_community_events_visibility", table_name="community_events")
-    op.drop_column("community_events", "sponsored_rank")
-    op.drop_column("community_events", "visibility")
+    conn = op.get_bind()
+    has_sponsored = conn.execute(
+        text("SELECT 1 FROM information_schema.columns WHERE table_name='community_events' AND column_name='sponsored_rank'")
+    ).scalar()
+    if has_sponsored:
+        op.drop_index("ix_community_events_sponsored_rank", table_name="community_events")
+        op.drop_column("community_events", "sponsored_rank")
+    has_visibility = conn.execute(
+        text("SELECT 1 FROM information_schema.columns WHERE table_name='community_events' AND column_name='visibility'")
+    ).scalar()
+    if has_visibility:
+        op.drop_index("ix_community_events_visibility", table_name="community_events")
+        op.drop_column("community_events", "visibility")

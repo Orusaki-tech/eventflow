@@ -32,3 +32,6 @@ Pillow>=10.0
 # monitoring
 prometheus-client>=0.21
 
+# payments
+stripe>=10.0
+

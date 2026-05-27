@@ -1209,6 +1209,20 @@ export async function getSubscription(baseUrl: string, token: string | null): Pr
   return request<SubscriptionResponse | null>(baseUrl, "/api/v1/subscriptions", token, { method: "GET" });
 }
 
+export type CheckoutSessionResponse = {
+  url: string | null;
+  error: string | null;
+};
+
+export async function createCheckoutSession(
+  baseUrl: string,
+  token: string | null
+): Promise<CheckoutSessionResponse> {
+  return request<CheckoutSessionResponse>(baseUrl, "/api/v1/subscriptions/checkout", token, {
+    method: "POST",
+  });
+}
+
 export async function purchaseSubscription(
   baseUrl: string,
   token: string | null

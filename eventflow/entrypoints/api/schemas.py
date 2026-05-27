@@ -868,6 +868,11 @@ class SubscriptionResponse(BaseModel):
     created_at: datetime | None = None
 
 
+class CheckoutSessionResponse(BaseModel):
+    url: str | None = None
+    error: str | None = None
+
+
 class ReferralLinkResponse(BaseModel):
     link_id: UUID
     code: str

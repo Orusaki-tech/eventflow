@@ -12,6 +12,9 @@ from psycopg.types.json import Json
 from sqlalchemy import text
 from starlette.responses import Response
 
+from starlette.requests import Request as StarletteRequest
+
+from eventflow.adapters.stripe_client import create_checkout_session, verify_webhook_signature
 from eventflow.entrypoints.api.schemas import (
     AdminClaimResolveRequest,
     AdminClaimRow,
@@ -47,6 +50,7 @@ from eventflow.entrypoints.api.schemas import (
     PurchaseResponse,
     RedeemPointsRequest,
     SalesDetailRow,
+    CheckoutSessionResponse,
     SubscriptionResponse,
     TapPackBuyRequest,
     TapPackResponse,
@@ -1781,6 +1785,179 @@ async def cancel_subscription(
     )
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/subscriptions/checkout", status_code=status.HTTP_200_OK, response_model=CheckoutSessionResponse)
+async def create_checkout(
+    user_id=Depends(get_current_user_id),
+):
+    settings = get_settings()
+    base = settings.public_base_url.rstrip("/")
+    success_url = f"{base}/api/v1/stripe/checkout-success?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{base}/api/v1/subscriptions"
+
+    url = create_checkout_session(
+        user_id=user_id,
+        success_url=success_url,
+        cancel_url=cancel_url,
+    )
+    if url is None:
+        return CheckoutSessionResponse(
+            error="Subscription checkout is not available. Please contact support."
+        )
+    return CheckoutSessionResponse(url=url)
+
+
+@router.get("/stripe/checkout-success", status_code=status.HTTP_200_OK)
+async def stripe_checkout_success(
+    session_id: str = Query(...),
+    session=Depends(get_session),
+):
+    """Called after Stripe redirects the user. Verifies the session and activates the subscription."""
+    import stripe as stripe_lib
+
+    settings = get_settings()
+    if not settings.stripe_secret_key:
+        return {"status": "error", "detail": "Stripe not configured"}
+
+    stripe_lib.api_key = settings.stripe_secret_key
+    try:
+        checkout = stripe_lib.checkout.Session.retrieve(session_id)
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
+    if checkout.mode != "subscription" or checkout.payment_status != "paid":
+        return {"status": "pending", "detail": "Payment not yet confirmed"}
+
+    user_id_str = checkout.metadata.get("user_id") or checkout.client_reference_id
+    if not user_id_str:
+        return {"status": "error", "detail": "No user_id in session metadata"}
+
+    user_id = UUID(user_id_str)
+    sub_id = checkout.subscription
+    now = datetime.now(timezone.utc)
+
+    # Retrieve subscription details from Stripe for period dates
+    sub = stripe_lib.Subscription.retrieve(sub_id)
+    period_start = datetime.fromtimestamp(sub.current_period_start, tz=timezone.utc)
+    period_end = datetime.fromtimestamp(sub.current_period_end, tz=timezone.utc)
+    sid = uuid4()
+
+    session.execute(
+        text(
+            """
+            INSERT INTO user_subscriptions (id, user_id, plan, status, stripe_subscription_id, current_period_start, current_period_end, created_at)
+            VALUES (:id, :uid, 'premium', 'active', :ssid, :ps, :pe, :now)
+            ON CONFLICT (user_id) DO UPDATE SET
+                status = 'active',
+                plan = 'premium',
+                stripe_subscription_id = :ssid2,
+                current_period_start = :ps2,
+                current_period_end = :pe2
+            """
+        ),
+        {
+            "id": sid,
+            "uid": user_id,
+            "ssid": sub_id,
+            "ps": period_start,
+            "pe": period_end,
+            "now": now,
+            "ssid2": sub_id,
+            "ps2": period_start,
+            "pe2": period_end,
+        },
+    )
+    session.commit()
+    return {
+        "status": "success",
+        "subscription_id": str(sid),
+        "current_period_end": period_end.isoformat(),
+    }
+
+
+@router.post("/stripe/webhook", status_code=status.HTTP_200_OK)
+async def stripe_webhook(
+    request: StarletteRequest,
+    session=Depends(get_session),
+):
+    """Handle Stripe webhook events (checkout.session.completed, customer.subscription.updated)."""
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature")
+    if not sig_header:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing stripe-signature header")
+
+    event = verify_webhook_signature(payload, sig_header)
+    if event is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid webhook signature")
+
+    event_type = event.get("type")
+    data = event.get("data", {}).get("object", {})
+
+    if event_type == "checkout.session.completed":
+        user_id_str = data.get("metadata", {}).get("user_id") or data.get("client_reference_id")
+        if not user_id_str:
+            return {"received": True, "warning": "No user_id in session metadata"}
+
+        user_id = UUID(user_id_str)
+        sub_id = data.get("subscription")
+        if not sub_id:
+            return {"received": True, "warning": "No subscription ID in session"}
+
+        now = datetime.now(timezone.utc)
+        sid = uuid4()
+
+        import stripe as stripe_lib
+        stripe_lib.api_key = get_settings().stripe_secret_key
+        sub = stripe_lib.Subscription.retrieve(sub_id)
+        period_start = datetime.fromtimestamp(sub.current_period_start, tz=timezone.utc)
+        period_end = datetime.fromtimestamp(sub.current_period_end, tz=timezone.utc)
+
+        session.execute(
+            text(
+                """
+                INSERT INTO user_subscriptions (id, user_id, plan, status, stripe_subscription_id, current_period_start, current_period_end, created_at)
+                VALUES (:id, :uid, 'premium', 'active', :ssid, :ps, :pe, :now)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    status = 'active', plan = 'premium', stripe_subscription_id = :ssid2,
+                    current_period_start = :ps2, current_period_end = :pe2
+                """
+            ),
+            {
+                "id": sid, "uid": user_id, "ssid": sub_id,
+                "ps": period_start, "pe": period_end, "now": now,
+                "ssid2": sub_id, "ps2": period_start, "pe2": period_end,
+            },
+        )
+        session.commit()
+
+    elif event_type == "customer.subscription.updated":
+        sub_id = data.get("id")
+        status = data.get("status")
+        if status == "active" and data.get("metadata", {}).get("user_id"):
+            now = datetime.now(timezone.utc)
+            period_start = datetime.fromtimestamp(data["current_period_start"], tz=timezone.utc)
+            period_end = datetime.fromtimestamp(data["current_period_end"], tz=timezone.utc)
+            session.execute(
+                text(
+                    """
+                    UPDATE user_subscriptions SET
+                        status = 'active', current_period_start = :ps, current_period_end = :pe
+                    WHERE stripe_subscription_id = :ssid
+                    """
+                ),
+                {"ssid": sub_id, "ps": period_start, "pe": period_end},
+            )
+            session.commit()
+
+    elif event_type == "customer.subscription.deleted":
+        session.execute(
+            text("UPDATE user_subscriptions SET status = 'cancelled' WHERE stripe_subscription_id = :ssid"),
+            {"ssid": data.get("id")},
+        )
+        session.commit()
+
+    return {"received": True}
 
 
 # ─── Admin Endpoints ──────────────────────────────────────────────────────
