@@ -15,11 +15,13 @@ from eventflow.entrypoints.api.schemas import (
     AdminConsoleBusinessListResponse,
     AdminConsoleBusinessRow,
     AdminConsoleCommunityEventListResponse,
+    AdminConsoleCommunityEventPatchRequest,
     AdminConsoleCommunityEventRow,
     AdminConsoleMeResponse,
     AdminConsolePosterAssetListResponse,
     AdminConsolePosterAssetRow,
     AdminConsolePosterProcessingLogListResponse,
+    AdminConsolePosterProcessingLogPatchRequest,
     AdminConsolePosterProcessingLogRow,
     AdminConsoleSharedLinkListingListResponse,
     AdminConsoleSharedLinkListingRow,
@@ -446,6 +448,147 @@ async def admin_console_get_shared_link_listing(
         cached_payload=row[3],
         created_at=row[4],
         updated_at=row[5],
+    )
+
+
+@router.patch("/community-events/{event_id}", response_model=AdminConsoleCommunityEventRow)
+async def admin_console_patch_community_event(
+    event_id: UUID,
+    body: AdminConsoleCommunityEventPatchRequest,
+    _admin: UUID = Depends(require_admin_user),
+    session=Depends(get_session),
+):
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
+
+    existing = session.execute(
+        text("SELECT id FROM community_events WHERE id = :id LIMIT 1"),
+        {"id": str(event_id)},
+    ).first()
+    if existing is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Community event not found")
+
+    sets = []
+    params: dict = {}
+    if body.title is not None:
+        sets.append("title = :title")
+        params["title"] = body.title
+    if body.start_time is not None:
+        sets.append("start_time = :start_time")
+        params["start_time"] = body.start_time
+    if body.venue is not None:
+        sets.append("venue = :venue")
+        params["venue"] = body.venue
+    if body.description is not None:
+        sets.append("description = :description")
+        params["description"] = body.description
+    if body.poster_image_uri is not None:
+        sets.append("poster_image_uri = :poster_image_uri")
+        params["poster_image_uri"] = body.poster_image_uri
+    if not sets:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields to update")
+
+    params["id"] = str(event_id)
+    session.execute(
+        text(f"UPDATE community_events SET {', '.join(sets)} WHERE id = :id"),
+        params,
+    )
+    session.commit()
+
+    updated = session.execute(
+        text(
+            """
+            SELECT e.id, e.user_id, e.title, e.start_time, e.venue, e.source, e.poster_image_uri,
+                   (SELECT business_id FROM business_listing_attachments WHERE community_event_id = e.id LIMIT 1) AS attached_business_id
+            FROM community_events e WHERE e.id = :id
+            """
+        ),
+        {"id": str(event_id)},
+    ).first()
+
+    return AdminConsoleCommunityEventRow(
+        community_event_id=updated[0],
+        user_id=updated[1],
+        title=updated[2],
+        start_time=updated[3],
+        venue=updated[4],
+        source=updated[5],
+        poster_image_uri=updated[6],
+        attached_business_id=updated[7],
+    )
+
+
+@router.patch("/poster-processing-logs/{log_id}", response_model=AdminConsolePosterProcessingLogRow)
+async def admin_console_patch_poster_processing_log(
+    log_id: UUID,
+    body: AdminConsolePosterProcessingLogPatchRequest,
+    _admin: UUID = Depends(require_admin_user),
+    session=Depends(get_session),
+):
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
+
+    existing = session.execute(
+        text("SELECT id FROM poster_processing_logs WHERE id = :id LIMIT 1"),
+        {"id": str(log_id)},
+    ).first()
+    if existing is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Processing log not found")
+
+    sets = []
+    params: dict = {}
+    if body.extracted_title is not None:
+        sets.append("extracted_title = :extracted_title")
+        params["extracted_title"] = body.extracted_title
+    if body.extracted_start_time is not None:
+        sets.append("extracted_start_time = :extracted_start_time")
+        params["extracted_start_time"] = body.extracted_start_time
+    if body.extracted_venue is not None:
+        sets.append("extracted_venue = :extracted_venue")
+        params["extracted_venue"] = body.extracted_venue
+    if body.confidence_score is not None:
+        sets.append("confidence_score = :confidence_score")
+        params["confidence_score"] = body.confidence_score
+    if body.extracted_price is not None:
+        sets.append("extracted_price = :extracted_price")
+        params["extracted_price"] = body.extracted_price
+    if body.status is not None:
+        sets.append("status = :status")
+        params["status"] = body.status
+    if not sets:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields to update")
+
+    params["id"] = str(log_id)
+    session.execute(
+        text(f"UPDATE poster_processing_logs SET {', '.join(sets)} WHERE id = :id"),
+        params,
+    )
+    session.commit()
+
+    updated = session.execute(
+        text(
+            """
+            SELECT id, poster_asset_id, user_id, extracted_title, extracted_start_time, extracted_venue,
+                   confidence_score, extracted_price, model_version, status, error_message, created_at
+            FROM poster_processing_logs WHERE id = :id
+            """
+        ),
+        {"id": str(log_id)},
+    ).first()
+
+    return AdminConsolePosterProcessingLogRow(
+        id=updated[0],
+        poster_asset_id=updated[1],
+        user_id=updated[2],
+        extracted_title=updated[3],
+        extracted_start_time=updated[4],
+        extracted_venue=updated[5],
+        confidence_score=float(updated[6]) if updated[6] is not None else None,
+        extracted_price=updated[7],
+        model_version=updated[8],
+        status=updated[9],
+        error_message=updated[10],
+        created_at=updated[11],
     )
 
 

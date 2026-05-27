@@ -564,6 +564,23 @@ class AdminConsolePosterProcessingLogListResponse(BaseModel):
     offset: int
 
 
+class AdminConsoleCommunityEventPatchRequest(BaseModel):
+    title: str | None = None
+    start_time: datetime | None = None
+    venue: str | None = None
+    description: str | None = None
+    poster_image_uri: str | None = None
+
+
+class AdminConsolePosterProcessingLogPatchRequest(BaseModel):
+    extracted_title: str | None = None
+    extracted_start_time: datetime | None = None
+    extracted_venue: str | None = None
+    confidence_score: float | None = None
+    extracted_price: str | None = None
+    status: str | None = None
+
+
 class AdminConsoleSharedLinkListingRow(BaseModel):
     normalized_url: str
     source_url_raw: str | None = None
