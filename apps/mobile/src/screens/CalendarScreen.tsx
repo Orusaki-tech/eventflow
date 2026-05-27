@@ -67,8 +67,7 @@ export function CalendarScreen({ navigation }: Props) {
   const { accessToken, apiBaseUrl, refreshSession } = useAuth();
   const [todayRows, setTodayRows] = useState<TodayEventRow[]>([]);
   const [upcomingRows, setUpcomingRows] = useState<UpcomingEventRow[]>([]);
-  const [loadingToday, setLoadingToday] = useState(true);
-  const [loadingUpcoming, setLoadingUpcoming] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   const tzOffsetMinutes = useMemo(() => -new Date().getTimezoneOffset(), []);
 
@@ -76,41 +75,29 @@ export function CalendarScreen({ navigation }: Props) {
     useCallback(() => {
       let cancelled = false;
       void (async () => {
-        setLoadingToday(true);
+        setLoading(true);
         try {
-          const list = await listToday(apiBaseUrl, accessToken, tzOffsetMinutes);
-          if (!cancelled) setTodayRows(list);
-        } catch {
-          if (!cancelled) setTodayRows([]);
-          await refreshSession().catch(() => undefined);
+          const [t, u] = await Promise.all([
+            listToday(apiBaseUrl, accessToken, tzOffsetMinutes),
+            listUpcoming(apiBaseUrl, accessToken),
+          ]);
+          if (!cancelled) {
+            setTodayRows(t);
+            setUpcomingRows(u);
+          }
+        } catch (e: unknown) {
+          if (!cancelled) {
+            setTodayRows([]);
+            setUpcomingRows([]);
+          }
         } finally {
-          if (!cancelled) setLoadingToday(false);
+          if (!cancelled) setLoading(false);
         }
       })();
       return () => {
         cancelled = true;
       };
-    }, [accessToken, apiBaseUrl, refreshSession, tzOffsetMinutes])
-  );
-
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
-      void (async () => {
-        setLoadingUpcoming(true);
-        try {
-          const list = await listUpcoming(apiBaseUrl, accessToken);
-          if (!cancelled) setUpcomingRows(list);
-        } catch {
-          if (!cancelled) setUpcomingRows([]);
-        } finally {
-          if (!cancelled) setLoadingUpcoming(false);
-        }
-      })();
-      return () => {
-        cancelled = true;
-      };
-    }, [accessToken, apiBaseUrl])
+    }, [accessToken, apiBaseUrl, tzOffsetMinutes])
   );
 
   const uniqueTodayRows = useMemo(() => {
@@ -120,8 +107,6 @@ export function CalendarScreen({ navigation }: Props) {
   const uniqueUpcomingRows = useMemo(() => {
     return dedupeByEventFingerprint<UpcomingEventRow>(upcomingRows);
   }, [upcomingRows]);
-
-  const loading = segment === "today" ? loadingToday : loadingUpcoming;
 
   return (
     <View style={styles.root}>
