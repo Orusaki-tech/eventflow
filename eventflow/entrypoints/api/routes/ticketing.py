@@ -15,6 +15,7 @@ from starlette.responses import Response
 from starlette.requests import Request as StarletteRequest
 
 from eventflow.adapters.stripe_client import create_checkout_session, verify_webhook_signature
+from eventflow.config import get_settings
 from eventflow.entrypoints.api.schemas import (
     AdminClaimResolveRequest,
     AdminClaimRow,
@@ -1933,8 +1934,8 @@ async def stripe_webhook(
 
     elif event_type == "customer.subscription.updated":
         sub_id = data.get("id")
-        status = data.get("status")
-        if status == "active" and data.get("metadata", {}).get("user_id"):
+        sub_status = data.get("status")
+        if sub_status == "active" and data.get("metadata", {}).get("user_id"):
             now = datetime.now(timezone.utc)
             period_start = datetime.fromtimestamp(data["current_period_start"], tz=timezone.utc)
             period_end = datetime.fromtimestamp(data["current_period_end"], tz=timezone.utc)
