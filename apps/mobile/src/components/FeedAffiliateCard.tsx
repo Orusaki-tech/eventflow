@@ -66,11 +66,12 @@ export function FeedAffiliateCard({ item }: Props) {
                 navigationRef.navigate("CommunityListingDetail", {
                   communityEventId: item.community_event_id,
                   organizerUserId: "",
-                  title: item.event_title,
+                  title: item.event_title!,
                   start_time: "",
                   venue: "",
                   whatsapp_e164: null,
                   business_id: item.seller_business_id,
+                  viewMode: "viewer",
                 });
               }
             }}

@@ -89,6 +89,7 @@ export function FeedEventCard({ item }: Props) {
                   venue: item.venue,
                   whatsapp_e164: item.whatsapp_e164 ?? null,
                   business_id: item.business_id ?? null,
+                  viewMode: "viewer",
                 });
               }
             }}

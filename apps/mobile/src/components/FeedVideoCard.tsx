@@ -41,6 +41,7 @@ type Props = {
 
 export function FeedVideoCard({ item, isActive, onWatch }: Props) {
   const { colors } = useTheme();
+  const VideoComponent = NativeVideo;
   const videoRef = useRef<unknown>(null);
   const [loaded, setLoaded] = useState(false);
   const [muted, setMuted] = useState(true);
@@ -76,7 +77,7 @@ export function FeedVideoCard({ item, isActive, onWatch }: Props) {
   }, [isActive]);
 
   const hasVideo = !!item.video_uri;
-  const useNative = !!NativeVideo && hasVideo && !playingExternally;
+  const useNative = !!VideoComponent && hasVideo && !playingExternally;
 
   const openVideoExternally = () => {
     if (item.video_uri) {
@@ -88,8 +89,8 @@ export function FeedVideoCard({ item, isActive, onWatch }: Props) {
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
       {/* Native video player (expo-av) */}
-      {useNative ? (
-        <NativeVideo
+      {useNative && VideoComponent ? (
+        <VideoComponent
           ref={videoRef}
           source={{ uri: item.video_uri }}
           style={styles.video as Record<string, unknown>}
@@ -159,6 +160,7 @@ export function FeedVideoCard({ item, isActive, onWatch }: Props) {
                   venue: "",
                   whatsapp_e164: item.whatsapp_e164 ?? null,
                   business_id: item.business_id,
+                  viewMode: "viewer",
                 });
               }
             }}

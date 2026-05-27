@@ -177,6 +177,7 @@ export function BusinessProfileViewScreen({ route }: Props) {
                 venue: l.venue,
                 whatsapp_e164: l.whatsapp_e164,
                 business_id: profile.business_id,
+                viewMode: "viewer",
               })
             }
           >

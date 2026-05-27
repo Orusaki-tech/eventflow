@@ -67,6 +67,8 @@ export type RootStackParamList = {
     venue: string;
     whatsapp_e164?: string | null;
     business_id?: string | null;
+    /** Viewer mode hides owner-only actions (e.g. promote). */
+    viewMode?: "viewer" | "owner";
   };
   BusinessProfileView: { businessId: string; businessName?: string };
   SocialHub: undefined;

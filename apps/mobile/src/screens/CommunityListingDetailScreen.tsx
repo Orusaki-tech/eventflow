@@ -56,9 +56,18 @@ export function CommunityListingDetailScreen({ route }: Props) {
     },
   }));
 
-  const { communityEventId, organizerUserId, title, start_time, venue, whatsapp_e164, business_id } = route.params;
+  const { communityEventId, organizerUserId, title, start_time, venue, whatsapp_e164, business_id, viewMode } =
+    route.params;
   const { accessToken, apiBaseUrl, refreshSession, session } = useAuth();
   const authUserId = session?.user?.id ?? null;
+  const isOwner =
+    Boolean(
+      organizerUserId &&
+        authUserId &&
+        organizerUserId.toLowerCase() === authUserId.toLowerCase()
+    );
+  const effectiveViewMode: "viewer" | "owner" = viewMode ?? "viewer";
+  const showOwnerControls = effectiveViewMode === "owner" && isOwner;
 
   const [slides, setSlides] = useState<CarouselSlide[]>([]);
   const [carouselLoading, setCarouselLoading] = useState(true);
@@ -272,7 +281,7 @@ export function CommunityListingDetailScreen({ route }: Props) {
           onPress={toggleFollow}
           fullWidth
         />
-      ) : organizerUserId && authUserId && organizerUserId.toLowerCase() === authUserId.toLowerCase() ? (
+      ) : showOwnerControls ? (
         <AppText tone="tertiary">This is your listing.</AppText>
       ) : null}
 
@@ -298,37 +307,51 @@ export function CommunityListingDetailScreen({ route }: Props) {
         <Button label="Chat on WhatsApp" variant="filled" onPress={openOrganizerWhatsApp} fullWidth />
       ) : null}
 
-      <AppText variant="title">Carousel</AppText>
-      {carouselLoading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.textSecondary} />
-        </View>
-      ) : carouselError ? (
-        <AppText tone="secondary">{carouselError}</AppText>
-      ) : slides.length === 0 ? (
-        <AppText tone="tertiary">No slides for this listing.</AppText>
-      ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {slides.map((item, i) => (
-            <View key={`slide-${i}`} style={{ marginRight: i < slides.length - 1 ? tokens.spacing[12] : 0 }}>
-              {renderSlide({ item })}
-            </View>
-          ))}
-        </ScrollView>
-      )}
+      {/* Carousel is optional; in viewer mode we silently hide unauthorized sections. */}
+      {(() => {
+        const unauthorized =
+          carouselError && /not\s+authorized|forbidden|permission|unauthorized/i.test(carouselError);
+        const shouldHideCarousel = effectiveViewMode === "viewer" && unauthorized;
+        if (shouldHideCarousel) return null;
 
-      <View style={styles.demoBanner}>
-        <AppText variant="labelSmall" tone="tertiary">
-          Demo only — not real checkout.
-        </AppText>
-        <Button
-          label={billingBusy ? "Opening…" : "Promote listing (stub)"}
-          variant="outline"
-          loading={billingBusy}
-          onPress={openBillingDemo}
-          fullWidth
-        />
-      </View>
+        return (
+          <>
+            <AppText variant="title">Carousel</AppText>
+            {carouselLoading ? (
+              <View style={styles.center}>
+                <ActivityIndicator color={colors.textSecondary} />
+              </View>
+            ) : carouselError ? (
+              <AppText tone="secondary">{carouselError}</AppText>
+            ) : slides.length === 0 ? (
+              <AppText tone="tertiary">No slides for this listing.</AppText>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {slides.map((item, i) => (
+                  <View key={`slide-${i}`} style={{ marginRight: i < slides.length - 1 ? tokens.spacing[12] : 0 }}>
+                    {renderSlide({ item })}
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+          </>
+        );
+      })()}
+
+      {showOwnerControls ? (
+        <View style={styles.demoBanner}>
+          <AppText variant="labelSmall" tone="tertiary">
+            Demo only — not real checkout.
+          </AppText>
+          <Button
+            label={billingBusy ? "Opening…" : "Promote listing (stub)"}
+            variant="outline"
+            loading={billingBusy}
+            onPress={openBillingDemo}
+            fullWidth
+          />
+        </View>
+      ) : null}
 
       <Pressable
         accessibilityLabel="Open venue in Maps"
