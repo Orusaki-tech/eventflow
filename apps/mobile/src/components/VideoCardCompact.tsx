@@ -37,14 +37,43 @@ export function VideoCardCompact({ item }: Props) {
   
   const handlePlaybackStatusUpdate = useCallback(
     (status: Record<string, unknown>) => {
+      console.log("Video playback status update:", status);
       if (!status.isLoaded) return;
-      if (!loaded) setLoaded(true);
+      if (!loaded) {
+        console.log("Video loaded successfully");
+        setLoaded(true);
+      }
+      
+      // Check for errors
+      if (status.error) {
+        console.error("Video playback error:", status.error);
+        // If there's an error, fall back to navigation
+        if (item.community_event_id && navigationRef.isReady()) {
+          navigationRef.navigate("CommunityListingDetail", {
+            communityEventId: item.community_event_id,
+            organizerUserId: "",
+            title: item.event_title ?? item.title,
+            start_time: "",
+            venue: "",
+            whatsapp_e164: item.whatsapp_e164 ?? null,
+            business_id: item.business_id,
+            viewMode: "viewer",
+          });
+        }
+      }
     },
-    [loaded]
+    [loaded, item, navigationRef]
   );
 
   const togglePlay = () => {
+    console.log("VideoCardCompact togglePlay called:", {
+      hasVideoComponent: !!VideoComponent,
+      hasVideoUri: !!item.video_uri,
+      videoUri: item.video_uri
+    });
+    
     if (!VideoComponent || !item.video_uri) {
+      console.log("Video component not available or no video URI - falling back to navigation");
       if (item.community_event_id && navigationRef.isReady()) {
         navigationRef.navigate("CommunityListingDetail", {
           communityEventId: item.community_event_id,
@@ -60,6 +89,7 @@ export function VideoCardCompact({ item }: Props) {
       return;
     }
     
+    console.log("Toggling video play state:", isPlaying);
     setIsPlaying(!isPlaying);
   };
 

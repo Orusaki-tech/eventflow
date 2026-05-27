@@ -42,7 +42,7 @@ async def get_user_preferences(
     ).first()
     if row is None:
         return UserPreferencesResponse(monthly_budget_minor_units=None)
-    return UserPreferencesResponse(monthly_budget_minor_units=row[0])
+    return UserPreferencesResponse(monthly_budget_minor_units=row.monthly_budget_minor_units)
 
 
 @router.patch("/users/me/preferences", status_code=status.HTTP_200_OK, response_model=UserPreferencesResponse)
@@ -60,7 +60,7 @@ async def patch_user_preferences(
             text("SELECT monthly_budget_minor_units FROM user_preferences WHERE user_id = :uid"),
             {"uid": str(user_id)},
         ).first()
-        return UserPreferencesResponse(monthly_budget_minor_units=None if row is None else row[0])
+        return UserPreferencesResponse(monthly_budget_minor_units=None if row is None else row.monthly_budget_minor_units)
 
     budget = patch["monthly_budget_minor_units"]
     if budget is not None and budget < 0:
@@ -216,7 +216,7 @@ async def get_my_profile(
     ).first()
     if row is None:
         return UserProfileResponse(user_id=user_id, display_name="User")
-    return UserProfileResponse(user_id=user_id, display_name=row[0], avatar_url=row[1], is_public=row[2])
+    return UserProfileResponse(user_id=user_id, display_name=row.display_name, avatar_url=row.avatar_url, is_public=row.is_public)
 
 
 @router.put("/users/me/profile", status_code=status.HTTP_200_OK, response_model=UserProfileResponse)
@@ -245,7 +245,7 @@ async def upsert_my_profile(
         text("SELECT display_name, avatar_url, is_public FROM user_profiles WHERE user_id = :uid"),
         {"uid": str(user_id)},
     ).first()
-    return UserProfileResponse(user_id=user_id, display_name=row[0], avatar_url=row[1], is_public=row[2])
+    return UserProfileResponse(user_id=user_id, display_name=row.display_name, avatar_url=row.avatar_url, is_public=row.is_public)
 
 
 @router.get("/users/search", status_code=status.HTTP_200_OK, response_model=UserProfileSearchResponse)
@@ -293,9 +293,9 @@ async def get_user_profile(
     ).first()
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    if not row[2]:
+    if not row.is_public:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    return UserProfileResponse(user_id=user_id, display_name=row[0], avatar_url=row[1], is_public=row[2])
+    return UserProfileResponse(user_id=user_id, display_name=row.display_name, avatar_url=row.avatar_url, is_public=row.is_public)
 
 
 @router.get("/users/{user_id}/public-profile", status_code=status.HTTP_200_OK)

@@ -42,9 +42,9 @@ SOURCE_TAG = "prod_demo_seed"
 
 POSTER = lambda seed: f"https://picsum.photos/seed/{seed}/800/450"
 PRODUCT_IMG = lambda seed: f"https://picsum.photos/seed/{seed}/400/400"
-VIDEO_5S = "https://download.samplelib.com/mp4/sample-5s.mp4"
-VIDEO_10S = "https://download.samplelib.com/mp4/sample-10s.mp4"
-VIDEO_15S = "https://download.samplelib.com/mp4/sample-15s.mp4"
+VIDEO_5S = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+VIDEO_10S = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"
+VIDEO_15S = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
 THUMB = "https://picsum.photos/seed/vid-thumb/640/360"
 
 TODAY = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
