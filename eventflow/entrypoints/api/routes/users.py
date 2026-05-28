@@ -80,7 +80,7 @@ async def patch_user_preferences(
     )
     try:
         session.commit()
-    except Exception as e:
+    except Exception:
         session.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to save preferences")
     return UserPreferencesResponse(monthly_budget_minor_units=budget)

@@ -157,7 +157,7 @@ async def patch_business(
     try:
         session.execute(query, params)
         session.commit()
-    except Exception as e:
+    except Exception:
         session.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update business")
     row = session.execute(
