@@ -231,7 +231,7 @@ def try_share_url_from_community_listing_alias(
     ).first()
     if row is None:
         return None
-    title, start_time, venue, poster_uri = row[0], row[1], row[2], row[3]
+    title, start_time, venue, poster_uri = row.title, row.start_time, row.venue, row.poster_image_uri
     if start_time is None:
         return None
     parsed = ParsedEventDraft(

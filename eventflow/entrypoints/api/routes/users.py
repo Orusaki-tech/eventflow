@@ -78,7 +78,11 @@ async def patch_user_preferences(
         ),
         {"uid": str(user_id), "budget": budget, "now": now},
     )
-    session.commit()
+    try:
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to save preferences")
     return UserPreferencesResponse(monthly_budget_minor_units=budget)
 
 
@@ -311,7 +315,7 @@ async def get_user_public_profile(
     ).first()
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    if not row[2]:
+    if not row.is_public:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     events_organized = session.execute(
@@ -340,25 +344,25 @@ async def get_user_public_profile(
     events = []
     seen = set()
     for r in events_organized:
-        eid = str(r[0])
+        eid = str(r.id)
         seen.add(eid)
         events.append(PublicProfileEventRow(
-            community_event_id=r[0], title=r[1], start_time=r[2],
-            venue=r[3], poster_image_uri=r[4], role="organizer",
+            community_event_id=r.id, title=r.title, start_time=r.start_time,
+            venue=r.venue, poster_image_uri=r.poster_image_uri, role="organizer",
         ))
     for r in events_attended:
-        eid = str(r[0])
+        eid = str(r.id)
         if eid in seen:
             continue
         events.append(PublicProfileEventRow(
-            community_event_id=r[0], title=r[1], start_time=r[2],
-            venue=r[3], poster_image_uri=r[4], role="attendee",
+            community_event_id=r.id, title=r.title, start_time=r.start_time,
+            venue=r.venue, poster_image_uri=r.poster_image_uri, role="attendee",
         ))
 
     return UserPublicProfileResponse(
         user_id=user_id,
-        display_name=row[0],
-        avatar_url=row[1],
+        display_name=row.display_name,
+        avatar_url=row.avatar_url,
         events=events,
         total=len(events),
     )

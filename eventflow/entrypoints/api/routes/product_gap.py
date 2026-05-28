@@ -150,16 +150,23 @@ async def patch_business(
         ).first()
         if row is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found")
-        return BusinessResponse(business_id=row[0], name=row[1], whatsapp_e164=row[2], verified=bool(row[3]))
-    session.execute(text(f"UPDATE businesses SET {', '.join(sets)} WHERE id = :id"), params)
-    session.commit()
+        return BusinessResponse(business_id=row.id, name=row.name, whatsapp_e164=row.whatsapp_e164, verified=row.verified)
+    
+    # Build parameterized query with named placeholders for each column
+    query = text(f"UPDATE businesses SET {', '.join(sets)} WHERE id = :id")
+    try:
+        session.execute(query, params)
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update business")
     row = session.execute(
         text("SELECT id, name, whatsapp_e164, verified FROM businesses WHERE id = :id LIMIT 1"),
         {"id": str(business_id)},
     ).first()
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found after update")
-    return BusinessResponse(business_id=row[0], name=row[1], whatsapp_e164=row[2], verified=bool(row[3]))
+    return BusinessResponse(business_id=row.id, name=row.name, whatsapp_e164=row.whatsapp_e164, verified=row.verified)
 
 
 @router.patch(

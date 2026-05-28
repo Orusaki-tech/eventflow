@@ -74,7 +74,7 @@ def _assert_listing_owner(session, community_event_id: UUID, user_id: UUID) -> N
     ).first()
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Listing not found")
-    if row[0] != user_id:
+    if row.user_id != user_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your listing")
 
 
@@ -85,7 +85,7 @@ def _assert_business_owner(session, business_id: UUID, user_id: UUID) -> None:
     ).first()
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found")
-    if row[0] != user_id:
+    if row.owner_user_id != user_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your business")
 
 
@@ -94,7 +94,7 @@ def _get_platform_setting(session, key: str) -> dict:
         text("SELECT value FROM platform_settings WHERE key = :k LIMIT 1"),
         {"k": key},
     ).first()
-    return dict(row[0]) if row and row[0] else {}
+    return dict(row.value) if row and row.value else {}
 
 
 def _generate_short_code() -> str:
